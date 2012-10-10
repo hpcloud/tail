@@ -32,20 +32,24 @@ type Tail struct {
 // TailFile channels the lines of a logfile along with timestamp. If
 // end is true, channel only newly added lines. If retry is true, tail
 // the file name (not descriptor) and retry on file open/read errors.
-func TailFile(filename string, maxlinesize int, end bool, retry bool) *Tail {
+func TailFile(filename string, maxlinesize int, end bool, retry bool) (*Tail, error) {
+	watcher, err := fileCreateWatcher(filename)
+	if err != nil {
+		return nil, err
+	}
 	t := &Tail{
 		filename,
 		make(chan *Line),
 		maxlinesize,
 		nil,
 		nil,
-		fileCreateWatcher(filename),
+		watcher,
 		make(chan bool),
 		make(chan bool)}
 
 	go t.tailFileSync(end, retry)
 
-	return t
+	return t, nil
 }
 
 func (tail *Tail) Stop() {
@@ -166,19 +170,19 @@ func (tail *Tail) tailFileSync(end bool, retry bool) {
 }
 
 // returns the watcher for file create events
-func fileCreateWatcher(filename string) *fsnotify.Watcher {
+func fileCreateWatcher(filename string) (*fsnotify.Watcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		panic(fmt.Sprintf("fsnotify error: %s", err))
+		return nil, err
 	}
 
 	// watch on parent directory because the file may not exit.
 	err = watcher.WatchFlags(filepath.Dir(filename), fsnotify.FSN_CREATE)
 	if err != nil {
-		panic(fmt.Sprintf("fsnotify error on file: %s", err))
+		return nil, err
 	}
 
-	return watcher
+	return watcher, nil
 }
 
 // get current time in unix timestamp
