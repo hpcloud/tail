@@ -146,30 +146,33 @@ func (tail *Tail) tailFileSync(end bool, retry bool) {
 					changes = tail.watcher.ChangeEvents()
 				}
 
-				//log.Println("WAITING ", tail.Filename)
-				_, ok := <-changes
-				//log.Println("RECEIVED ", tail.Filename)
-
-				if !ok {
-					// file got deleted/renamed
-					if retry {
-						log.Printf("File %s has been moved (logrotation?); reopening..", tail.Filename)
-						tail.reopen(retry)
-						log.Printf("File %s has been reopened.", tail.Filename)
-						tail.reader = bufio.NewReaderSize(tail.file, tail.maxlinesize)
-						changes = nil
-						continue
-					} else {
-						log.Printf("File %s has gone away; skipping this file.\n", tail.Filename)
-						tail.close()
-						return
+				select {
+				case _, ok := <-changes:
+					if !ok {
+						// file got deleted/renamed
+						if retry {
+							log.Printf("File %s has been moved (logrotation?); reopening..", tail.Filename)
+							tail.reopen(retry)
+							log.Printf("File %s has been reopened.", tail.Filename)
+							tail.reader = bufio.NewReaderSize(tail.file, tail.maxlinesize)
+							changes = nil
+							continue
+						} else {
+							log.Printf("File %s has gone away; skipping this file.\n", tail.Filename)
+							tail.close()
+							return
+						}
 					}
+				case <-tail.stop:
+					// stop the tailer if requested.
+					// FIXME: respect DRY (see below)
+					return
 				}
+
 			}
 		}
 
 		// stop the tailer if requested.
-		// FIXME: won't happen promptly; http://bugs.activestate.com/show_bug.cgi?id=95718#c3
 		select {
 		case <-tail.stop:
 			return
