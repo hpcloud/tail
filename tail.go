@@ -3,11 +3,9 @@ package tail
 import (
 	"bufio"
 	"fmt"
-	"github.com/howeyc/fsnotify"
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -20,10 +18,11 @@ type Tail struct {
 	Filename string
 	Lines    chan *Line
 
+	useinotify  bool
 	maxlinesize int
 	file        *os.File
 	reader      *bufio.Reader
-	watcher     *fsnotify.Watcher
+	watcher     FileWatcher
 
 	stop    chan bool
 	created chan bool
@@ -32,20 +31,24 @@ type Tail struct {
 // TailFile channels the lines of a logfile along with timestamp. If
 // end is true, channel only newly added lines. If retry is true, tail
 // the file name (not descriptor) and retry on file open/read errors.
-func TailFile(filename string, maxlinesize int, end bool, retry bool) (*Tail, error) {
-	watcher, err := fileCreateWatcher(filename)
-	if err != nil {
-		return nil, err
-	}
+func TailFile(filename string, maxlinesize int, end bool, retry bool, useinotify bool) (*Tail, error) {
 	t := &Tail{
 		filename,
 		make(chan *Line),
+		useinotify,
 		maxlinesize,
 		nil,
 		nil,
-		watcher,
+		nil,
 		make(chan bool),
 		make(chan bool)}
+
+	if !useinotify {
+		log.Println("Warning: not using inotify; will poll ", filename)
+		t.watcher = NewPollingFileWatcher(filename)
+	} else {
+		t.watcher = NewInotifyFileWatcher(filename)
+	}
 
 	go t.tailFileSync(end, retry)
 
@@ -59,7 +62,6 @@ func (tail *Tail) Stop() {
 
 func (tail *Tail) close() {
 	close(tail.Lines)
-	tail.watcher.Close()
 	if tail.file != nil {
 		tail.file.Close()
 	}
@@ -74,16 +76,15 @@ func (tail *Tail) reopen(wait bool) {
 		tail.file, err = os.Open(tail.Filename)
 		if err != nil {
 			if os.IsNotExist(err) && wait {
-				for {
-					evt := <-tail.watcher.Event
-					if evt.Name == tail.Filename {
-						break
-					}
+				log.Println("blocking until exists")
+				err := tail.watcher.BlockUntilExists()
+				if err != nil {
+					panic(err)
 				}
+				log.Println("exists now")
 				continue
 			}
-			// TODO: don't panic here
-			panic(fmt.Sprintf("can't open file: %s", err))
+			log.Println(fmt.Sprintf("Unable to reopen file (%s): %s", tail.Filename, err))
 		}
 		return
 	}
@@ -109,6 +110,8 @@ func (tail *Tail) readLine() ([]byte, error) {
 func (tail *Tail) tailFileSync(end bool, retry bool) {
 	tail.reopen(retry)
 
+	var changes chan bool
+
 	// Note: seeking to end happens only at the beginning; never
 	// during subsequent re-opens.
 	if end {
@@ -121,68 +124,58 @@ func (tail *Tail) tailFileSync(end bool, retry bool) {
 
 	tail.reader = bufio.NewReaderSize(tail.file, tail.maxlinesize)
 
-	every2Seconds := time.Tick(2 * time.Second)
-
 	for {
 		line, err := tail.readLine()
 
-		if err != nil && err != io.EOF {
-			log.Println("Error reading file; skipping this file - ", err)
-			tail.close()
-			return
-		}
+		if err == nil {
+			if line != nil {
+				tail.Lines <- &Line{string(line), getCurrentTime()}
+			}
+		} else {
+			if err != io.EOF {
+				log.Println("Error reading file; skipping this file - ", err)
+				tail.close()
+				return
+			}
 
-		// sleep for 0.1s on inactive files, else we cause too much I/O activity
-		if err == io.EOF {
-			time.Sleep(100 * time.Millisecond)
-		}
+			// When end of file is reached, wait for more data to
+			// become available. Wait strategy is based on the
+			// `tail.watcher` implementation (inotify or polling).
+			if err == io.EOF {
+				if changes == nil {
+					changes = tail.watcher.ChangeEvents()
+				}
 
-		if line != nil {
-			tail.Lines <- &Line{string(line), getCurrentTime()}
-		}
+				//log.Println("WAITING ", tail.Filename)
+				_, ok := <-changes
+				//log.Println("RECEIVED ", tail.Filename)
 
-		select {
-		case <-every2Seconds: // periodically stat the file to check for possibly deletion.
-			if _, err := tail.file.Stat(); os.IsNotExist(err) {
-				if retry {
-					log.Printf("File %s has gone away; attempting to reopen it.\n", tail.Filename)
-					tail.reopen(retry)
-					tail.reader = bufio.NewReaderSize(tail.file, tail.maxlinesize)
-					continue
-				} else {
-					log.Printf("File %s has gone away; skipping this file.\n", tail.Filename)
-					tail.close()
-					return
+				if !ok {
+					// file got deleted/renamed
+					if retry {
+						log.Printf("File %s has been moved (logrotation?); reopening..", tail.Filename)
+						tail.reopen(retry)
+						log.Printf("File %s has been reopened.", tail.Filename)
+						tail.reader = bufio.NewReaderSize(tail.file, tail.maxlinesize)
+						changes = nil
+						continue
+					} else {
+						log.Printf("File %s has gone away; skipping this file.\n", tail.Filename)
+						tail.close()
+						return
+					}
 				}
 			}
-		case evt := <-tail.watcher.Event:
-			if evt.Name == tail.Filename {
-				log.Printf("File %s has been moved (logrotation?); reopening..", tail.Filename)
-				tail.reopen(retry)
-				tail.reader = bufio.NewReaderSize(tail.file, tail.maxlinesize)
-				continue
-			}
-		case <-tail.stop: // stop the tailer if requested
+		}
+
+		// stop the tailer if requested.
+		// FIXME: won't happen promptly; http://bugs.activestate.com/show_bug.cgi?id=95718#c3
+		select {
+		case <-tail.stop:
 			return
 		default:
 		}
 	}
-}
-
-// returns the watcher for file create events
-func fileCreateWatcher(filename string) (*fsnotify.Watcher, error) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return nil, err
-	}
-
-	// watch on parent directory because the file may not exit.
-	err = watcher.WatchFlags(filepath.Dir(filename), fsnotify.FSN_CREATE)
-	if err != nil {
-		return nil, err
-	}
-
-	return watcher, nil
 }
 
 // get current time in unix timestamp
