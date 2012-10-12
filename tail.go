@@ -2,8 +2,8 @@ package tail
 
 import (
 	"bufio"
-	"fmt"
 	"io"
+	"launchpad.net/tomb"
 	"log"
 	"os"
 	"time"
@@ -32,8 +32,7 @@ type Tail struct {
 	reader  *bufio.Reader
 	watcher FileWatcher
 
-	stop    chan bool
-	created chan bool
+	tomb.Tomb // provides: Done, Kill, Dying
 }
 
 // TailFile channels the lines of a logfile along with timestamp. If
@@ -45,15 +44,14 @@ func TailFile(filename string, config Config) (*Tail, error) {
 		panic("only 0/-1 values are supported for Location")
 	}
 
+	if config.ReOpen && !config.Follow {
+		panic("cannot set ReOpen without Follow")
+	}
+
 	t := &Tail{
-		filename,
-		make(chan *Line),
-		config,
-		nil,
-		nil,
-		nil,
-		make(chan bool),
-		make(chan bool)}
+		Filename: filename,
+		Lines:    make(chan *Line),
+		Config:   config}
 
 	if t.Poll {
 		log.Println("Warning: not using inotify; will poll ", filename)
@@ -75,9 +73,9 @@ func TailFile(filename string, config Config) (*Tail, error) {
 	return t, nil
 }
 
-func (tail *Tail) Stop() {
-	tail.stop <- true
-	tail.close()
+func (tail *Tail) Stop() error {
+	tail.Kill(nil)
+	return tail.Wait()
 }
 
 func (tail *Tail) close() {
@@ -98,11 +96,11 @@ func (tail *Tail) reopen() {
 			if os.IsNotExist(err) {
 				err := tail.watcher.BlockUntilExists()
 				if err != nil {
-					// TODO: use error channels
-					log.Fatalf("cannot watch for file creation -- %s", tail.Filename, err)
+					tail.Killf("failed to detect creation of %s: %s", tail.Filename, err)
 				}
 				continue
 			}
+			tail.Killf("Unable to open file %s: %s", tail.Filename, err)
 		}
 		break
 	}
@@ -125,6 +123,8 @@ func (tail *Tail) readLine() ([]byte, error) {
 }
 
 func (tail *Tail) tailFileSync() {
+	defer tail.Done()
+
 	if !tail.MustExist {
 		tail.reopen()
 	}
@@ -136,8 +136,7 @@ func (tail *Tail) tailFileSync() {
 	if tail.Location == 0 {
 		_, err := tail.file.Seek(0, 2) // seek to end of the file
 		if err != nil {
-			// TODO: don't panic here
-			panic(fmt.Sprintf("seek error: %s", err))
+			tail.Killf("Seek error on %s: %s", tail.Filename, err)
 		}
 	}
 
@@ -152,8 +151,8 @@ func (tail *Tail) tailFileSync() {
 			}
 		} else {
 			if err != io.EOF {
-				log.Println("Error reading file; skipping this file - ", err)
 				tail.close()
+				tail.Killf("Error reading %s: %s", tail.Filename, err)
 				return
 			}
 
@@ -170,6 +169,7 @@ func (tail *Tail) tailFileSync() {
 					if !ok {
 						// file got deleted/renamed
 						if tail.ReOpen {
+							// TODO: no logging in a library
 							log.Printf("File %s has been moved (logrotation?); reopening..", tail.Filename)
 							tail.reopen()
 							log.Printf("File %s has been reopened.", tail.Filename)
@@ -182,18 +182,18 @@ func (tail *Tail) tailFileSync() {
 							return
 						}
 					}
-				case <-tail.stop:
-					// stop the tailer if requested.
+				case <-tail.Dying():
 					// FIXME: respect DRY (see below)
+					tail.close()
 					return
 				}
 
 			}
 		}
 
-		// stop the tailer if requested.
 		select {
-		case <-tail.stop:
+		case <-tail.Dying():
+			tail.close()
 			return
 		default:
 		}
