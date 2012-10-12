@@ -14,15 +14,23 @@ type Line struct {
 	UnixTime int64
 }
 
+type Config struct {
+	Location    int  // -n
+	Follow      bool // -f
+	ReOpen      bool // -F
+	MustExist   bool // if false, wait for the file to exist before beginning to tail.
+	Poll        bool // if true, do not use inotify but use polling
+	MaxLineSize int  // if > 0, limit the line size (discarding the rest)
+}
+
 type Tail struct {
 	Filename string
 	Lines    chan *Line
+	Config
 
-	useinotify  bool
-	maxlinesize int
-	file        *os.File
-	reader      *bufio.Reader
-	watcher     FileWatcher
+	file    *os.File
+	reader  *bufio.Reader
+	watcher FileWatcher
 
 	stop    chan bool
 	created chan bool
@@ -31,26 +39,38 @@ type Tail struct {
 // TailFile channels the lines of a logfile along with timestamp. If
 // end is true, channel only newly added lines. If retry is true, tail
 // the file name (not descriptor) and retry on file open/read errors.
-func TailFile(filename string, maxlinesize int, end bool, retry bool, useinotify bool) (*Tail, error) {
+// func TailFile(filename string, maxlinesize int, end bool, retry bool, useinotify bool) (*Tail, error) {
+func TailFile(filename string, config Config) (*Tail, error) {
+	if !(config.Location == 0 || config.Location == -1) {
+		panic("only 0/-1 values are supported for Location")
+	}
+
 	t := &Tail{
 		filename,
 		make(chan *Line),
-		useinotify,
-		maxlinesize,
+		config,
 		nil,
 		nil,
 		nil,
 		make(chan bool),
 		make(chan bool)}
 
-	if !useinotify {
+	if t.Poll {
 		log.Println("Warning: not using inotify; will poll ", filename)
 		t.watcher = NewPollingFileWatcher(filename)
 	} else {
 		t.watcher = NewInotifyFileWatcher(filename)
 	}
 
-	go t.tailFileSync(end, retry)
+	if t.MustExist {
+		var err error
+		t.file, err = os.Open(t.Filename)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	go t.tailFileSync()
 
 	return t, nil
 }
@@ -67,7 +87,7 @@ func (tail *Tail) close() {
 	}
 }
 
-func (tail *Tail) reopen(wait bool) {
+func (tail *Tail) reopen() {
 	if tail.file != nil {
 		tail.file.Close()
 	}
@@ -75,18 +95,17 @@ func (tail *Tail) reopen(wait bool) {
 		var err error
 		tail.file, err = os.Open(tail.Filename)
 		if err != nil {
-			if os.IsNotExist(err) && wait {
+			if os.IsNotExist(err) {
 				err := tail.watcher.BlockUntilExists()
 				if err != nil {
-					panic(err)
+					// TODO: use error channels
+					log.Fatalf("cannot watch for file creation -- %s", tail.Filename, err)
 				}
 				continue
 			}
-			log.Println(fmt.Sprintf("Unable to reopen file (%s): %s", tail.Filename, err))
 		}
-		return
+		break
 	}
-	return // unreachable
 }
 
 func (tail *Tail) readLine() ([]byte, error) {
@@ -105,14 +124,16 @@ func (tail *Tail) readLine() ([]byte, error) {
 	return line, err
 }
 
-func (tail *Tail) tailFileSync(end bool, retry bool) {
-	tail.reopen(retry)
+func (tail *Tail) tailFileSync() {
+	if !tail.MustExist {
+		tail.reopen()
+	}
 
 	var changes chan bool
 
 	// Note: seeking to end happens only at the beginning; never
 	// during subsequent re-opens.
-	if end {
+	if tail.Location == 0 {
 		_, err := tail.file.Seek(0, 2) // seek to end of the file
 		if err != nil {
 			// TODO: don't panic here
@@ -120,7 +141,7 @@ func (tail *Tail) tailFileSync(end bool, retry bool) {
 		}
 	}
 
-	tail.reader = bufio.NewReaderSize(tail.file, tail.maxlinesize)
+	tail.reader = bufio.NewReaderSize(tail.file, tail.MaxLineSize)
 
 	for {
 		line, err := tail.readLine()
@@ -148,11 +169,11 @@ func (tail *Tail) tailFileSync(end bool, retry bool) {
 				case _, ok := <-changes:
 					if !ok {
 						// file got deleted/renamed
-						if retry {
+						if tail.ReOpen {
 							log.Printf("File %s has been moved (logrotation?); reopening..", tail.Filename)
-							tail.reopen(retry)
+							tail.reopen()
 							log.Printf("File %s has been reopened.", tail.Filename)
-							tail.reader = bufio.NewReaderSize(tail.file, tail.maxlinesize)
+							tail.reader = bufio.NewReaderSize(tail.file, tail.MaxLineSize)
 							changes = nil
 							continue
 						} else {
