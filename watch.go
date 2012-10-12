@@ -36,7 +36,7 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 	}
 	<-w.Event
 	w.RemoveWatch(filepath.Dir(fw.Filename))
-	// XXX: how to free up w's goroutines without relying on the gc?
+	w.Close()
 	return nil
 }
 
@@ -63,6 +63,7 @@ func (fw *InotifyFileWatcher) ChangeEvents() chan bool {
 			case evt.IsRename():
 				close(ch)
 				w.RemoveWatch(fw.Filename)
+				w.Close()
 				return
 
 			case evt.IsModify():

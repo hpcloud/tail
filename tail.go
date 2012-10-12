@@ -76,12 +76,10 @@ func (tail *Tail) reopen(wait bool) {
 		tail.file, err = os.Open(tail.Filename)
 		if err != nil {
 			if os.IsNotExist(err) && wait {
-				log.Println("blocking until exists")
 				err := tail.watcher.BlockUntilExists()
 				if err != nil {
 					panic(err)
 				}
-				log.Println("exists now")
 				continue
 			}
 			log.Println(fmt.Sprintf("Unable to reopen file (%s): %s", tail.Filename, err))
