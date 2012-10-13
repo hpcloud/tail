@@ -36,70 +36,70 @@ func TestMustExist(t *testing.T) {
 	tail.Stop()
 }
 
-func TestMaxLineSize(t *testing.T) {
-	fix := NewFixture("maxlinesize", t)
-	fix.CreateFile("test.txt", "hello\nworld\n")
-	tail := fix.StartTail("test.txt", Config{Follow: true, Location: -1, MaxLineSize: 3})
-	go fix.VerifyTail(tail, []string{"hel", "lo", "wor", "ld"})
+func TestMaxLineSize(_t *testing.T) {
+	t := NewTailTest("maxlinesize", _t)
+	t.CreateFile("test.txt", "hello\nworld\nfin\nhe")
+	tail := t.StartTail("test.txt", Config{Follow: true, Location: -1, MaxLineSize: 3})
+	go t.VerifyTailOutput(tail, []string{"hel", "lo", "wor", "ld", "fin", "he"})
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
-	fix.RemoveFile("test.txt")
+	t.RemoveFile("test.txt")
 	tail.Stop()
 }
 
-func TestLocationFull(t *testing.T) {
-	fix := NewFixture("location-full", t)
-	fix.CreateFile("test.txt", "hello\nworld\n")
-	tail := fix.StartTail("test.txt", Config{Follow: true, Location: -1})
-	go fix.VerifyTail(tail, []string{"hello", "world"})
+func TestLocationFull(_t *testing.T) {
+	t := NewTailTest("location-full", _t)
+	t.CreateFile("test.txt", "hello\nworld\n")
+	tail := t.StartTail("test.txt", Config{Follow: true, Location: -1})
+	go t.VerifyTailOutput(tail, []string{"hello", "world"})
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
-	fix.RemoveFile("test.txt")
+	t.RemoveFile("test.txt")
 	tail.Stop()
 }
 
-func TestLocationEnd(t *testing.T) {
-	fix := NewFixture("location-end", t)
-	fix.CreateFile("test.txt", "hello\nworld\n")
-	tail := fix.StartTail("test.txt", Config{Follow: true, Location: 0})
-	go fix.VerifyTail(tail, []string{"more", "data"})
+func TestLocationEnd(_t *testing.T) {
+	t := NewTailTest("location-end", _t)
+	t.CreateFile("test.txt", "hello\nworld\n")
+	tail := t.StartTail("test.txt", Config{Follow: true, Location: 0})
+	go t.VerifyTailOutput(tail, []string{"more", "data"})
 
 	<-time.After(100 * time.Millisecond)
-	fix.AppendFile("test.txt", "more\ndata\n")
+	t.AppendFile("test.txt", "more\ndata\n")
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
-	fix.RemoveFile("test.txt")
+	t.RemoveFile("test.txt")
 	tail.Stop()
 }
 
-func TestReOpen(t *testing.T) {
-	fix := NewFixture("reopen", t)
-	fix.CreateFile("test.txt", "hello\nworld\n")
-	tail := fix.StartTail("test.txt", Config{Follow: true, ReOpen: true, Location: -1})
-	go fix.VerifyTail(tail, []string{"hello", "world", "more", "data", "endofworld"})
+func TestReOpen(_t *testing.T) {
+	t := NewTailTest("reopen", _t)
+	t.CreateFile("test.txt", "hello\nworld\n")
+	tail := t.StartTail("test.txt", Config{Follow: true, ReOpen: true, Location: -1})
+	go t.VerifyTailOutput(tail, []string{"hello", "world", "more", "data", "endofworld"})
 
 	// deletion must trigger reopen
 	<-time.After(100 * time.Millisecond)
-	fix.RemoveFile("test.txt")
+	t.RemoveFile("test.txt")
 	<-time.After(100 * time.Millisecond)
-	fix.CreateFile("test.txt", "more\ndata\n")
+	t.CreateFile("test.txt", "more\ndata\n")
 
 	// rename must trigger reopen
 	<-time.After(100 * time.Millisecond)
-	fix.RenameFile("test.txt", "test.txt.rotated")
+	t.RenameFile("test.txt", "test.txt.rotated")
 	<-time.After(100 * time.Millisecond)
-	fix.CreateFile("test.txt", "endofworld")
+	t.CreateFile("test.txt", "endofworld")
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
-	fix.RemoveFile("test.txt")
+	t.RemoveFile("test.txt")
 	
 	tail.Stop()
 }
@@ -107,79 +107,79 @@ func TestReOpen(t *testing.T) {
 
 // Test library
 
-type Fixture struct {
+type TailTest struct {
 	Name string
 	path string
-	t    *testing.T
+	*testing.T
 }
 
-func NewFixture(name string, t *testing.T) Fixture {
-	fix := Fixture{name, ".test/" + name, t}
-	err := os.MkdirAll(fix.path, os.ModeTemporary|0700)
+func NewTailTest(name string, t *testing.T) TailTest {
+	tt := TailTest{name, ".test/" + name, t}
+	err := os.MkdirAll(tt.path, os.ModeTemporary|0700)
+	if err != nil {
+		tt.Fatal(err)
+	}
+	return tt
+}
+
+func (t TailTest) CreateFile(name string, contents string) {
+	err := ioutil.WriteFile(t.path+"/"+name, []byte(contents), 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return fix
 }
 
-func (fix Fixture) CreateFile(name string, contents string) {
-	err := ioutil.WriteFile(fix.path+"/"+name, []byte(contents), 0600)
+func (t TailTest) RemoveFile(name string) {
+	err := os.Remove(t.path + "/" + name)
 	if err != nil {
-		fix.t.Fatal(err)
+		t.Fatal(err)
 	}
 }
 
-func (fix Fixture) RemoveFile(name string) {
-	err := os.Remove(fix.path + "/" + name)
-	if err != nil {
-		fix.t.Fatal(err)
-	}
-}
-
-func (fix Fixture) RenameFile(oldname string, newname string) {
-	oldname = fix.path + "/" + oldname
-	newname = fix.path + "/" + newname
+func (t TailTest) RenameFile(oldname string, newname string) {
+	oldname = t.path + "/" + oldname
+	newname = t.path + "/" + newname
 	err := os.Rename(oldname, newname)
 	if err != nil {
-		fix.t.Fatal(err)
+		t.Fatal(err)
 	}
 }
 
-func (fix Fixture) AppendFile(name string, contents string) {
-	f, err := os.OpenFile(fix.path+"/"+name, os.O_APPEND|os.O_WRONLY, 0600)
+func (t TailTest) AppendFile(name string, contents string) {
+	f, err := os.OpenFile(t.path+"/"+name, os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
-		fix.t.Fatal(err)
+		t.Fatal(err)
 	}
 	defer f.Close()
 	_, err = f.WriteString(contents)
 	if err != nil {
-		fix.t.Fatal(err)
+		t.Fatal(err)
 	}
 }
 
-func (fix Fixture) StartTail(name string, config Config) *Tail {
-	tail, err := TailFile(fix.path+"/"+name, config)
+func (t TailTest) StartTail(name string, config Config) *Tail {
+	tail, err := TailFile(t.path+"/"+name, config)
 	if err != nil {
-		fix.t.Fatal(err)
+		t.Fatal(err)
 	}
 	return tail
 }
 
-func (fix Fixture) VerifyTail(tail *Tail, lines []string) {
+func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
 	for idx, line := range lines {
 		tailedLine, ok := <-tail.Lines
 		if !ok {
-			fix.t.Fatalf("tail ended early; expecting more: %v", lines[idx:])
+			t.Fatalf("tail ended early; expecting more: %v", lines[idx:])
 		}
 		if tailedLine == nil {
-			fix.t.Fatalf("tail.Lines returned nil; not possible")
+			t.Fatalf("tail.Lines returned nil; not possible")
 		}
 		if tailedLine.Text != line {
-			fix.t.Fatalf("mismatch; %s != %s", tailedLine.Text, line)
+			t.Fatalf("mismatch; %s != %s", tailedLine.Text, line)
 		}
 	}
 	line, ok := <-tail.Lines
 	if ok {
-		fix.t.Fatalf("more content from tail: %s", line.Text)
+		t.Fatalf("more content from tail: %s", line.Text)
 	}
 }
