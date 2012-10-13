@@ -107,14 +107,32 @@ func (fw *PollingFileWatcher) ChangeEvents() chan bool {
 	stop := make(chan bool)
 	every2Seconds := time.Tick(2 * time.Second)
 
+	var prevModTime time.Time
 	go func() {
 		for {
-			time.Sleep(250 * time.Millisecond)
 			select {
-			case ch <- true:
 			case <-stop:
 				return
 			default:
+			}
+
+			time.Sleep(250 * time.Millisecond)
+			fi, err := os.Stat(fw.Filename)
+			if err != nil {
+				if os.IsNotExist(err) {
+					// below goroutine (every2Seconds) will catch up eventually and stop us.
+					continue 
+				}
+				panic(err)
+			}
+			
+			modTime := fi.ModTime()
+			if modTime != prevModTime {
+				prevModTime = modTime
+				select {
+				case ch <- true:
+				default:
+				}
 			}
 		}
 	}()
@@ -123,7 +141,7 @@ func (fw *PollingFileWatcher) ChangeEvents() chan bool {
 		for {
 			select {
 			case <-every2Seconds:
-				// NOTE: not using file descriptor.
+				// XXX: not using file descriptor as per contract.
 				if _, err := os.Stat(fw.Filename); os.IsNotExist(err) {
 					stop <- true
 					close(ch)
