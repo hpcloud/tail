@@ -193,7 +193,7 @@ func (tail *Tail) tailFileSync() {
 							}
 							log.Printf("Successfully reopened %s", tail.Filename)
 							tail.reader = bufio.NewReaderSize(tail.file, tail.MaxLineSize)
-							changes = nil
+							changes = nil // XXX: how to kill changes' goroutine?
 							continue
 						} else {
 							log.Printf("Finishing because file has been moved/deleted: %s", tail.Filename)
