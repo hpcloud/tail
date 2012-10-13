@@ -99,9 +99,8 @@ func (tail *Tail) reopen() error {
 		tail.file, err = os.Open(tail.Filename)
 		if err != nil {
 			if os.IsNotExist(err) {
-				log.Printf("Waiting for the file to appear...")
+				log.Printf("Waiting for %s to appear...", tail.Filename)
 				err := tail.watcher.BlockUntilExists()
-				log.Println(err)
 				if err != nil {
 					return fmt.Errorf("Failed to detect creation of %s: %s", tail.Filename, err)
 				}

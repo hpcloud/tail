@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"logyard/tail"
 	"flag"
+	"os"
 )
-
-var samplefile = "/tmp/test"
 
 func args2config() tail.Config {
 	config := tail.Config{Follow: true}
@@ -21,7 +20,25 @@ func args2config() tail.Config {
 }
 
 func main() {
-	t, err := tail.TailFile(samplefile, args2config())
+	config := args2config()
+	if flag.NFlag() < 1 {
+		fmt.Println("need one or more files as arguments")
+		os.Exit(1)
+	}
+
+	done := make(chan bool)
+	for _, filename := range flag.Args() {
+		go tailFile(filename, config, done)
+	}
+
+	for _, _ = range flag.Args() {
+		<-done
+	}
+}
+
+func tailFile(filename string, config tail.Config, done chan bool) {
+	defer func() { done <- true }()
+	t, err := tail.TailFile(filename, config)
 	if err != nil {
 		fmt.Println(err)
 		return
