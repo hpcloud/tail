@@ -1,3 +1,6 @@
+// TODO:
+//  * repeat all the tests with Poll:true
+
 package tail
 
 import (
@@ -30,6 +33,19 @@ func TestMustExist(t *testing.T) {
 	if err != nil {
 		t.Error("MustExist:true on an existing file is violated")
 	}
+	tail.Stop()
+}
+
+func TestMaxLineSize(t *testing.T) {
+	fix := NewFixture("maxlinesize", t)
+	fix.CreateFile("test.txt", "hello\nworld\n")
+	tail := fix.StartTail("test.txt", Config{Follow: true, Location: -1, MaxLineSize: 3})
+	go fix.VerifyTail(tail, []string{"hel", "lo", "wor", "ld"})
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(100 * time.Millisecond)
+	fix.RemoveFile("test.txt")
 	tail.Stop()
 }
 
@@ -83,7 +99,7 @@ func TestReOpen(t *testing.T) {
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
-	fix.RemoveFile("test.txt") // TODO
+	fix.RemoveFile("test.txt")
 	
 	tail.Stop()
 }
@@ -153,7 +169,7 @@ func (fix Fixture) VerifyTail(tail *Tail, lines []string) {
 	for idx, line := range lines {
 		tailedLine, ok := <-tail.Lines
 		if !ok {
-			fix.t.Fatalf("insufficient lines from tail; expecting %v", lines[idx+1:])
+			fix.t.Fatalf("tail ended early; expecting more: %v", lines[idx:])
 		}
 		if tailedLine == nil {
 			fix.t.Fatalf("tail.Lines returned nil; not possible")

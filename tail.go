@@ -21,7 +21,7 @@ type Config struct {
 	ReOpen      bool // -F
 	MustExist   bool // if false, wait for the file to exist before beginning to tail.
 	Poll        bool // if true, do not use inotify but use polling
-	MaxLineSize int  // if > 0, limit the line size (discarding the rest)
+	MaxLineSize int  // if > 0, limit the line size (rest of the line would be returned as next lines)
 }
 
 type Tail struct {
@@ -114,18 +114,7 @@ func (tail *Tail) reopen() error {
 }
 
 func (tail *Tail) readLine() ([]byte, error) {
-	line, isPrefix, err := tail.reader.ReadLine()
-
-	if isPrefix && err == nil {
-		// line is longer than what we can accept. 
-		// ignore the rest of this line.
-		for {
-			_, isPrefix, err := tail.reader.ReadLine()
-			if !isPrefix || err != nil {
-				return line, err
-			}
-		}
-	}
+	line, _, err := tail.reader.ReadLine()
 	return line, err
 }
 
@@ -154,14 +143,21 @@ func (tail *Tail) tailFileSync() {
 		}
 	}
 
-	tail.reader = bufio.NewReaderSize(tail.file, tail.MaxLineSize)
+	tail.reader = bufio.NewReader(tail.file)
 
 	for {
 		line, err := tail.readLine()
 
 		if err == nil {
 			if line != nil {
-				tail.Lines <- &Line{string(line), getCurrentTime()}
+				now := getCurrentTime()
+				if tail.MaxLineSize > 0 && len(line) > tail.MaxLineSize {
+					for _, line := range partitionString(string(line), tail.MaxLineSize) {
+						tail.Lines <- &Line{line, now}
+					}
+				}else{
+					tail.Lines <- &Line{string(line), now}
+				}
 			}
 		} else {
 			if err != io.EOF {
@@ -192,7 +188,7 @@ func (tail *Tail) tailFileSync() {
 								return
 							}
 							log.Printf("Successfully reopened %s", tail.Filename)
-							tail.reader = bufio.NewReaderSize(tail.file, tail.MaxLineSize)
+							tail.reader = bufio.NewReader(tail.file)
 							changes = nil // XXX: how to kill changes' goroutine?
 							continue
 						} else {
@@ -220,4 +216,28 @@ func (tail *Tail) tailFileSync() {
 // getCurrentTime returns the current time as UNIX timestamp
 func getCurrentTime() int64 {
 	return time.Now().UTC().Unix()
+}
+
+// partitionString partitions the string into chunks of given size,
+// with the last chunk of variable size.
+func partitionString(s string, chunkSize int) []string {
+	if chunkSize <= 0 {
+		panic("invalid chunkSize")
+	}
+	length := len(s)
+	chunks := 1 + length/chunkSize 
+	start := 0
+	end := chunkSize
+	parts := make([]string, 0, chunks)
+	for {
+		if end > length {
+			end = length
+		}
+		parts = append(parts, s[start:end])
+		if end == length {
+			break
+		}
+		start, end = end, end+chunkSize
+	}
+	return parts
 }
