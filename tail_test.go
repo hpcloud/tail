@@ -15,8 +15,7 @@ func init() {
 	}
 }
 
-// Test Config.MustExist
-func TestMissingFile(t *testing.T) {
+func TestMustExist(t *testing.T) {
 	tail, err := TailFile("/no/such/file", Config{Follow: true, MustExist: true})
 	if err == nil {
 		t.Error("MustExist:true is violated")
@@ -42,7 +41,7 @@ func TestLocationFull(t *testing.T) {
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
-	<-time.After(250 * time.Millisecond)
+	<-time.After(100 * time.Millisecond)
 	fix.RemoveFile("test.txt")
 	tail.Stop()
 }
@@ -58,10 +57,39 @@ func TestLocationEnd(t *testing.T) {
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
-	<-time.After(250 * time.Millisecond)
+	<-time.After(100 * time.Millisecond)
 	fix.RemoveFile("test.txt")
 	tail.Stop()
 }
+
+func TestReOpen(t *testing.T) {
+	fix := NewFixture("reopen", t)
+	fix.CreateFile("test.txt", "hello\nworld\n")
+	tail := fix.StartTail("test.txt", Config{Follow: true, ReOpen: true, Location: -1})
+	go fix.VerifyTail(tail, []string{"hello", "world", "more", "data", "endofworld"})
+
+	// deletion must trigger reopen
+	<-time.After(100 * time.Millisecond)
+	fix.RemoveFile("test.txt")
+	<-time.After(100 * time.Millisecond)
+	fix.CreateFile("test.txt", "more\ndata\n")
+
+	// rename must trigger reopen
+	<-time.After(100 * time.Millisecond)
+	fix.RenameFile("test.txt", "test.txt.rotated")
+	<-time.After(100 * time.Millisecond)
+	fix.CreateFile("test.txt", "endofworld")
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(100 * time.Millisecond)
+	fix.RemoveFile("test.txt") // TODO
+	
+	tail.Stop()
+}
+
+
+// Test library
 
 type Fixture struct {
 	Name string
@@ -92,6 +120,15 @@ func (fix Fixture) RemoveFile(name string) {
 	}
 }
 
+func (fix Fixture) RenameFile(oldname string, newname string) {
+	oldname = fix.path + "/" + oldname
+	newname = fix.path + "/" + newname
+	err := os.Rename(oldname, newname)
+	if err != nil {
+		fix.t.Fatal(err)
+	}
+}
+
 func (fix Fixture) AppendFile(name string, contents string) {
 	f, err := os.OpenFile(fix.path+"/"+name, os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
@@ -113,10 +150,10 @@ func (fix Fixture) StartTail(name string, config Config) *Tail {
 }
 
 func (fix Fixture) VerifyTail(tail *Tail, lines []string) {
-	for _, line := range lines {
+	for idx, line := range lines {
 		tailedLine, ok := <-tail.Lines
 		if !ok {
-			fix.t.Fatal("insufficient lines from tail")
+			fix.t.Fatalf("insufficient lines from tail; expecting %v", lines[idx+1:])
 		}
 		if tailedLine == nil {
 			fix.t.Fatalf("tail.Lines returned nil; not possible")
