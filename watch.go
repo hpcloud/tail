@@ -121,11 +121,11 @@ func (fw *PollingFileWatcher) ChangeEvents() chan bool {
 			if err != nil {
 				if os.IsNotExist(err) {
 					// below goroutine (every2Seconds) will catch up eventually and stop us.
-					continue 
+					continue
 				}
 				panic(err)
 			}
-			
+
 			modTime := fi.ModTime()
 			if modTime != prevModTime {
 				prevModTime = modTime

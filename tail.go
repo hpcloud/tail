@@ -1,8 +1,8 @@
 package tail
 
 import (
-	"fmt"
 	"bufio"
+	"fmt"
 	"io"
 	"launchpad.net/tomb"
 	"log"
