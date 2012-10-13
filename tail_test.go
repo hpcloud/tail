@@ -34,11 +34,27 @@ func TestMissingFile(t *testing.T) {
 	tail.Stop()
 }
 
-func TestLocationMinusOne(t *testing.T) {
-	fix := NewFixture("simple", t)
+func TestLocationFull(t *testing.T) {
+	fix := NewFixture("location-full", t)
 	fix.CreateFile("test.txt", "hello\nworld\n")
 	tail := fix.StartTail("test.txt", Config{Follow: true, Location: -1})
 	go fix.VerifyTail(tail, []string{"hello", "world"})
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(250 * time.Millisecond)
+	fix.RemoveFile("test.txt")
+	tail.Stop()
+}
+
+func TestLocationEnd(t *testing.T) {
+	fix := NewFixture("location-end", t)
+	fix.CreateFile("test.txt", "hello\nworld\n")
+	tail := fix.StartTail("test.txt", Config{Follow: true, Location: 0})
+	go fix.VerifyTail(tail, []string{"more", "data"})
+
+	<-time.After(100 * time.Millisecond)
+	fix.AppendFile("test.txt", "more\ndata\n")
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
@@ -63,7 +79,7 @@ func NewFixture(name string, t *testing.T) Fixture {
 }
 
 func (fix Fixture) CreateFile(name string, contents string) {
-	err := ioutil.WriteFile(fix.path+"/"+name, []byte(contents), 0777)
+	err := ioutil.WriteFile(fix.path+"/"+name, []byte(contents), 0600)
 	if err != nil {
 		fix.t.Fatal(err)
 	}
@@ -71,6 +87,18 @@ func (fix Fixture) CreateFile(name string, contents string) {
 
 func (fix Fixture) RemoveFile(name string) {
 	err := os.Remove(fix.path + "/" + name)
+	if err != nil {
+		fix.t.Fatal(err)
+	}
+}
+
+func (fix Fixture) AppendFile(name string, contents string) {
+	f, err := os.OpenFile(fix.path+"/"+name, os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		fix.t.Fatal(err)
+	}
+	defer f.Close()
+	_, err = f.WriteString(contents)
 	if err != nil {
 		fix.t.Fatal(err)
 	}
