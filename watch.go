@@ -36,7 +36,12 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 		return err
 	}
 	defer w.RemoveWatch(filepath.Dir(fw.Filename))
-	<-w.Event
+	for {
+		evt := <-w.Event
+		if evt.Name == fw.Filename {
+			break
+		}
+	}
 	return nil
 }
 
