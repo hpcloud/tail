@@ -1,6 +1,7 @@
 package tail
 
 import (
+	"fmt"
 	"bufio"
 	"io"
 	"launchpad.net/tomb"
@@ -41,11 +42,15 @@ type Tail struct {
 // func TailFile(filename string, maxlinesize int, end bool, retry bool, useinotify bool) (*Tail, error) {
 func TailFile(filename string, config Config) (*Tail, error) {
 	if !(config.Location == 0 || config.Location == -1) {
-		panic("only 0/-1 values are supported for Location")
+		panic("only 0/-1 values are supported for Location.")
 	}
 
 	if config.ReOpen && !config.Follow {
-		panic("cannot set ReOpen without Follow")
+		panic("cannot set ReOpen without Follow.")
+	}
+
+	if !config.Follow {
+		panic("Follow=false is not supported.")
 	}
 
 	t := &Tail{
@@ -85,7 +90,7 @@ func (tail *Tail) close() {
 	}
 }
 
-func (tail *Tail) reopen() {
+func (tail *Tail) reopen() error {
 	if tail.file != nil {
 		tail.file.Close()
 	}
@@ -94,16 +99,19 @@ func (tail *Tail) reopen() {
 		tail.file, err = os.Open(tail.Filename)
 		if err != nil {
 			if os.IsNotExist(err) {
+				log.Printf("Waiting for the file to appear...")
 				err := tail.watcher.BlockUntilExists()
+				log.Println(err)
 				if err != nil {
-					tail.Killf("failed to detect creation of %s: %s", tail.Filename, err)
+					return fmt.Errorf("Failed to detect creation of %s: %s", tail.Filename, err)
 				}
 				continue
 			}
-			tail.Killf("Unable to open file %s: %s", tail.Filename, err)
+			return fmt.Errorf("Unable to open file %s: %s", tail.Filename, err)
 		}
 		break
 	}
+	return nil
 }
 
 func (tail *Tail) readLine() ([]byte, error) {
@@ -126,17 +134,24 @@ func (tail *Tail) tailFileSync() {
 	defer tail.Done()
 
 	if !tail.MustExist {
-		tail.reopen()
+		err := tail.reopen()
+		if err != nil {
+			tail.close()
+			tail.Kill(err)
+			return
+		}
 	}
 
 	var changes chan bool
 
-	// Note: seeking to end happens only at the beginning; never
-	// during subsequent re-opens.
+	// Note: seeking to end happens only at the beginning of tail;
+	// never during subsequent re-opens.
 	if tail.Location == 0 {
 		_, err := tail.file.Seek(0, 2) // seek to end of the file
 		if err != nil {
+			tail.close()
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
+			return
 		}
 	}
 
@@ -167,27 +182,30 @@ func (tail *Tail) tailFileSync() {
 				select {
 				case _, ok := <-changes:
 					if !ok {
-						// file got deleted/renamed
+						// File got deleted/renamed
 						if tail.ReOpen {
-							// TODO: no logging in a library
-							log.Printf("File %s has been moved (logrotation?); reopening..", tail.Filename)
-							tail.reopen()
-							log.Printf("File %s has been reopened.", tail.Filename)
+							// TODO: no logging in a library?
+							log.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
+							err := tail.reopen()
+							if err != nil {
+								tail.close()
+								tail.Kill(err)
+								return
+							}
+							log.Printf("Successfully reopened %s", tail.Filename)
 							tail.reader = bufio.NewReaderSize(tail.file, tail.MaxLineSize)
 							changes = nil
 							continue
 						} else {
-							log.Printf("File %s has gone away; skipping this file.\n", tail.Filename)
+							log.Printf("Finishing because file has been moved/deleted: %s", tail.Filename)
 							tail.close()
 							return
 						}
 					}
 				case <-tail.Dying():
-					// FIXME: respect DRY (see below)
 					tail.close()
 					return
 				}
-
 			}
 		}
 
@@ -200,7 +218,7 @@ func (tail *Tail) tailFileSync() {
 	}
 }
 
-// get current time in unix timestamp
+// getCurrentTime returns the current time as UNIX timestamp
 func getCurrentTime() int64 {
 	return time.Now().UTC().Unix()
 }

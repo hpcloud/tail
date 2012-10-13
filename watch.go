@@ -30,13 +30,13 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 	if err != nil {
 		return err
 	}
+	defer w.Close()
 	err = w.WatchFlags(filepath.Dir(fw.Filename), fsnotify.FSN_CREATE)
 	if err != nil {
 		return err
 	}
+	defer w.RemoveWatch(filepath.Dir(fw.Filename))
 	<-w.Event
-	w.RemoveWatch(filepath.Dir(fw.Filename))
-	w.Close()
 	return nil
 }
 
