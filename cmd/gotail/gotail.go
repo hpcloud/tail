@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"logyard/tail"
+	"tail"
 	"flag"
 	"os"
 )

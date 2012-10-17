@@ -3,16 +3,26 @@
 A Go package striving to emulate the BSD `tail` program. 
 
 ```Go
-t := tail.TailFile("/var/log/nginx.log", 1000, true, true)
+t := tail.TailFile("/var/log/nginx.log", tail.Config{Follow: true})
 for line := range t.Lines {
     fmt.Println(line.Text)
 }
 ```
 
+## Building
+
+To build and test the package,
+
+    make setup
+    make test
+
+To build the command-line program `gotail`,
+
+    cd cmd/gotail
+    make
+    ./gotail -h
+
 ## TODO
 
-* tests
-* command line program (`tail -f ...`)
-* refactor: use Config? `NewTail(tail.Config{Filename: "", Follow: tail.FOLLOW_NAME})`
-* refactor: get rid of 'end' flag; allow `-n <number>` with `-n -1`
-  for end.
+* Support arbitrary values for `Location`
+
