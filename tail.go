@@ -12,7 +12,7 @@ import (
 
 type Line struct {
 	Text     string
-	UnixTime int64
+	Time     time.Time
 }
 
 type Config struct {
@@ -150,7 +150,7 @@ func (tail *Tail) tailFileSync() {
 
 		if err == nil {
 			if line != nil {
-				now := getCurrentTime()
+				now := time.Now()
 				if tail.MaxLineSize > 0 && len(line) > tail.MaxLineSize {
 					for _, line := range partitionString(string(line), tail.MaxLineSize) {
 						tail.Lines <- &Line{line, now}
@@ -211,11 +211,6 @@ func (tail *Tail) tailFileSync() {
 		default:
 		}
 	}
-}
-
-// getCurrentTime returns the current time as UNIX timestamp
-func getCurrentTime() int64 {
-	return time.Now().UTC().Unix()
 }
 
 // partitionString partitions the string into chunks of given size,
