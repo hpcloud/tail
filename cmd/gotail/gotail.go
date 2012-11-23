@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"tail"
+	"github.com/srid/tail"
 	"flag"
 	"os"
 )
