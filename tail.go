@@ -59,7 +59,6 @@ func TailFile(filename string, config Config) (*Tail, error) {
 		Config:   config}
 
 	if t.Poll {
-		log.Println("Warning: not using inotify; will poll ", filename)
 		t.watcher = NewPollingFileWatcher(filename)
 	} else {
 		t.watcher = NewInotifyFileWatcher(filename)
