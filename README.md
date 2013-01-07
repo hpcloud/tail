@@ -17,7 +17,6 @@ for line := range t.Lines {
 
 To build and test the package,
 
-    make setup
     make test
 
 To build the command-line program `gotail`,
