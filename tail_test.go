@@ -1,3 +1,5 @@
+// Copyright (c) 2013 ActiveState Software Inc. All rights reserved.
+
 // TODO:
 //  * repeat all the tests with Poll:true
 
