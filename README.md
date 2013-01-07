@@ -9,6 +9,10 @@ for line := range t.Lines {
 }
 ```
 
+## Installing
+
+    go get github.com/ActiveState/tail
+
 ## Building
 
 To build and test the package,
