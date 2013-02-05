@@ -1,6 +1,6 @@
-# Tail implementation in Go
+# Go package for tail-ing files
 
-A Go package striving to emulate the BSD `tail` program. 
+A Go package striving to emulate the features of the BSD `tail` program. 
 
 ```Go
 t := tail.TailFile("/var/log/nginx.log", tail.Config{Follow: true})
@@ -19,7 +19,7 @@ To build and test the package,
 
     make test
 
-To build the command-line program `gotail`,
+To build the toy command-line program `gotail`,
 
     cd cmd/gotail
     make
