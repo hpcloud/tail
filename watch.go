@@ -1,6 +1,5 @@
 // Copyright (c) 2013 ActiveState Software Inc. All rights reserved.
 
-// TODO: avoid creating two instances of the fsnotify.Watcher struct
 package tail
 
 import (
@@ -10,12 +9,18 @@ import (
 	"time"
 )
 
+// FileWatcher monitors file-level events.
 type FileWatcher interface {
+	// BlockUntilExists blocks until the missing file comes into
+	// existence. If the file already exists, block until it is recreated.
 	BlockUntilExists() error
+
+	// ChangeEvents returns a channel of events corresponding to the
+	// times the file is ready to be read.
 	ChangeEvents() chan bool
 }
 
-// FileWatcher monitors file-level events
+// InotifyFileWatcher uses inotify to monitor file changes.
 type InotifyFileWatcher struct {
 	Filename string
 }
@@ -25,8 +30,6 @@ func NewInotifyFileWatcher(filename string) *InotifyFileWatcher {
 	return fw
 }
 
-// BlockUntilExists blocks until the file comes into existence. If the
-// file already exists, then block until it is created again.
 func (fw *InotifyFileWatcher) BlockUntilExists() error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -47,7 +50,6 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 	return nil
 }
 
-// ChangeEvents returns a channel that gets updated when the file is ready to be read.
 func (fw *InotifyFileWatcher) ChangeEvents() chan bool {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -86,7 +88,7 @@ func (fw *InotifyFileWatcher) ChangeEvents() chan bool {
 	return ch
 }
 
-// FileWatcher monitors file-level events
+// PollingFileWatcher polls the file for changes.
 type PollingFileWatcher struct {
 	Filename string
 }
@@ -96,14 +98,11 @@ func NewPollingFileWatcher(filename string) *PollingFileWatcher {
 	return fw
 }
 
-// BlockUntilExists blocks until the file comes into existence. If the
-// file already exists, then block until it is created again.
 func (fw *PollingFileWatcher) BlockUntilExists() error {
 	panic("not implemented")
 	return nil
 }
 
-// ChangeEvents returns a channel that gets updated when the file is ready to be read.
 func (fw *PollingFileWatcher) ChangeEvents() chan bool {
 	ch := make(chan bool)
 	stop := make(chan bool)
@@ -122,7 +121,8 @@ func (fw *PollingFileWatcher) ChangeEvents() chan bool {
 			fi, err := os.Stat(fw.Filename)
 			if err != nil {
 				if os.IsNotExist(err) {
-					// below goroutine (every2Seconds) will catch up eventually and stop us.
+					// below goroutine (every2Seconds) will catch up
+					// eventually and stop us.
 					continue
 				}
 				panic(err)

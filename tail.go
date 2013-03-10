@@ -17,13 +17,14 @@ type Line struct {
 	Time     time.Time
 }
 
+// Tail configuration
 type Config struct {
-	Location    int  // -n
-	Follow      bool // -f
-	ReOpen      bool // -F
-	MustExist   bool // if false, wait for the file to exist before beginning to tail.
-	Poll        bool // if true, do not use inotify but use polling
-	MaxLineSize int  // if > 0, limit the line size (rest of the line would be returned as next lines)
+	Location    int  // Tail from last N lines (tail -n)
+	Follow      bool // Continue looking for new lines (tail -f)
+	ReOpen      bool // Reopen recreated files (tail -F)
+	MustExist   bool // Fail early if the file does not exist
+	Poll        bool // Poll for file changes instead of using inotify
+	MaxLineSize int  // If non-zero, split longer lines into multiple lines
 }
 
 type Tail struct {
@@ -38,10 +39,10 @@ type Tail struct {
 	tomb.Tomb // provides: Done, Kill, Dying
 }
 
-// TailFile channels the lines of a logfile along with timestamp. If
-// end is true, channel only newly added lines. If retry is true, tail
-// the file name (not descriptor) and retry on file open/read errors.
-// func TailFile(filename string, maxlinesize int, end bool, retry bool, useinotify bool) (*Tail, error) {
+// TailFile begins tailing the file with the specified
+// configuration. Output stream is made available via the `Tail.Lines`
+// channel. To handle errors during tailing, invoke the `Wait` method
+// after finishing reading from the `Lines` channel.
 func TailFile(filename string, config Config) (*Tail, error) {
 	if !(config.Location == 0 || config.Location == -1) {
 		panic("only 0/-1 values are supported for Location.")
