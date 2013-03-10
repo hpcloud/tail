@@ -9,6 +9,8 @@ for line := range t.Lines {
 }
 ```
 
+See [API documentation](http://godoc.org/github.com/ActiveState/tail).
+
 ## Installing
 
     go get github.com/ActiveState/tail
