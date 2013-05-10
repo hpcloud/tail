@@ -190,7 +190,7 @@ func (tail *Tail) tailFileSync() {
 						// File got deleted/renamed
 						if tail.ReOpen {
 							// TODO: no logging in a library?
-							log.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
+							log.Printf("Re-opening moved/deleted/truncated file %s ...", tail.Filename)
 							err := tail.reopen()
 							if err != nil {
 								tail.close()
