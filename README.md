@@ -26,8 +26,3 @@ To build the toy command-line program `gotail`,
     cd cmd/gotail
     make
     ./gotail -h
-
-## TODO
-
-* Support arbitrary values for `Location`
-

@@ -23,10 +23,11 @@ type FileWatcher interface {
 // InotifyFileWatcher uses inotify to monitor file changes.
 type InotifyFileWatcher struct {
 	Filename string
+	Size     int64
 }
 
 func NewInotifyFileWatcher(filename string) *InotifyFileWatcher {
-	fw := &InotifyFileWatcher{filename}
+	fw := &InotifyFileWatcher{filename, 0}
 	return fw
 }
 
@@ -63,19 +64,29 @@ func (fw *InotifyFileWatcher) ChangeEvents() chan bool {
 	ch := make(chan bool)
 
 	go func() {
+		defer w.Close()
+		defer w.RemoveWatch(fw.Filename)
+		defer close(ch)
+
 		for {
+			prevSize := fw.Size
+
 			evt := <-w.Event
 			switch {
 			case evt.IsDelete():
 				fallthrough
 
 			case evt.IsRename():
-				close(ch)
-				w.RemoveWatch(fw.Filename)
-				w.Close()
 				return
 
 			case evt.IsModify():
+				fi, _ := os.Stat(fw.Filename)
+				fw.Size = fi.Size()
+
+				if prevSize > 0 && prevSize > fw.Size {
+					return
+				}
+
 				// send only if channel is empty.
 				select {
 				case ch <- true:
@@ -91,10 +102,11 @@ func (fw *InotifyFileWatcher) ChangeEvents() chan bool {
 // PollingFileWatcher polls the file for changes.
 type PollingFileWatcher struct {
 	Filename string
+	Size     int64
 }
 
 func NewPollingFileWatcher(filename string) *PollingFileWatcher {
-	fw := &PollingFileWatcher{filename}
+	fw := &PollingFileWatcher{filename, 0}
 	return fw
 }
 
