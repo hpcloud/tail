@@ -48,10 +48,6 @@ func TailFile(filename string, config Config) (*Tail, error) {
 		panic("cannot set ReOpen without Follow.")
 	}
 
-	if !config.Follow {
-		panic("Follow=false is not supported.")
-	}
-
 	t := &Tail{
 		Filename: filename,
 		Lines:    make(chan *Line),
@@ -136,10 +132,10 @@ func (tail *Tail) tailFileSync() {
 	var offset int64
 	if tail.Location > 0 {
 		whence = 2
-		offset = -1 * int64(tail.Location) + 1
+		offset = -1*int64(tail.Location) + 1
 	} else if tail.Location < 0 {
 		whence = 0
-		offset = -1 * int64(tail.Location) - 1
+		offset = -1*int64(tail.Location) - 1
 	} else {
 		whence = 2
 	}
@@ -178,7 +174,13 @@ func (tail *Tail) tailFileSync() {
 			// `tail.watcher` implementation (inotify or polling).
 			if err == io.EOF {
 				if changes == nil {
-					changes = tail.watcher.ChangeEvents()
+
+					if tail.Follow {
+						changes = tail.watcher.ChangeEvents()
+					} else {
+						tail.close()
+						return
+					}
 				}
 
 				select {

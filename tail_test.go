@@ -64,6 +64,35 @@ func TestLocationFull(_t *testing.T) {
 	tail.Stop()
 }
 
+func TestLocationFullDontFollow(_t *testing.T) {
+	t := NewTailTest("location-full", _t)
+	t.CreateFile("test.txt", "hello\nworld\n")
+	tail := t.StartTail("test.txt", Config{Follow: false, Location: -1})
+	go t.VerifyTailOutput(tail, []string{"hello", "world"})
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(100 * time.Millisecond)
+	t.RemoveFile("test.txt")
+
+	<-time.After(100 * time.Millisecond)
+	t.CreateFile("test.txt", "more\ndata\n")
+
+	_, ok := <-tail.Lines
+
+	if ok {
+		_t.Errorf("Expecing the lines channel to be closed after EOF")
+	}
+
+	err := tail.Stop()
+
+	if err != nil {
+		_t.Errorf("failed to finish properly with error: %s", err)
+	}
+
+	t.RemoveFile("test.txt")
+}
+
 func TestLocationEnd(_t *testing.T) {
 	t := NewTailTest("location-end", _t)
 	t.CreateFile("test.txt", "hello\nworld\n")
@@ -102,10 +131,9 @@ func TestReOpen(_t *testing.T) {
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
-	
+
 	tail.Stop()
 }
-
 
 // Test library
 
