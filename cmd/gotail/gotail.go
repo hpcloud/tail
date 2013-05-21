@@ -3,15 +3,15 @@
 package main
 
 import (
-	"fmt"
-	"github.com/ActiveState/tail"
 	"flag"
+	"fmt"
+	"github.com/fw42/go-tail"
 	"os"
 )
 
 func args2config() tail.Config {
 	config := tail.Config{Follow: true}
-	flag.IntVar(&config.Location, "n", 0, "tail from the last Nth location")
+	flag.IntVar(&config.Location, "n", 0, "tail from the last (N-1)th byte offset location (use negative value to tail from start of file)")
 	flag.BoolVar(&config.Follow, "f", false, "wait for additional data to be appended to the file")
 	flag.BoolVar(&config.ReOpen, "F", false, "follow, and track file rename/rotation")
 	flag.Parse()

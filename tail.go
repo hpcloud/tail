@@ -13,13 +13,13 @@ import (
 )
 
 type Line struct {
-	Text     string
-	Time     time.Time
+	Text string
+	Time time.Time
 }
 
 // Tail configuration
 type Config struct {
-	Location    int  // Tail from last N lines (tail -n)
+	Location    int  // Tail from last N bytes (tail -n), negative value to tail from start
 	Follow      bool // Continue looking for new lines (tail -f)
 	ReOpen      bool // Reopen recreated files (tail -F)
 	MustExist   bool // Fail early if the file does not exist
@@ -44,16 +44,8 @@ type Tail struct {
 // channel. To handle errors during tailing, invoke the `Wait` method
 // after finishing reading from the `Lines` channel.
 func TailFile(filename string, config Config) (*Tail, error) {
-	if !(config.Location == 0 || config.Location == -1) {
-		panic("only 0/-1 values are supported for Location.")
-	}
-
 	if config.ReOpen && !config.Follow {
 		panic("cannot set ReOpen without Follow.")
-	}
-
-	if !config.Follow {
-		panic("Follow=false is not supported.")
 	}
 
 	t := &Tail{
@@ -136,13 +128,22 @@ func (tail *Tail) tailFileSync() {
 
 	// Note: seeking to end happens only at the beginning of tail;
 	// never during subsequent re-opens.
-	if tail.Location == 0 {
-		_, err := tail.file.Seek(0, 2) // seek to end of the file
-		if err != nil {
-			tail.close()
-			tail.Killf("Seek error on %s: %s", tail.Filename, err)
-			return
-		}
+	var whence int
+	var offset int64
+	if tail.Location > 0 {
+		whence = 2
+		offset = -1*int64(tail.Location) + 1
+	} else if tail.Location < 0 {
+		whence = 0
+		offset = -1*int64(tail.Location) - 1
+	} else {
+		whence = 2
+	}
+	_, err := tail.file.Seek(offset, whence)
+	if err != nil {
+		tail.close()
+		tail.Killf("Seek error on %s: %s", tail.Filename, err)
+		return
 	}
 
 	tail.reader = bufio.NewReader(tail.file)
@@ -157,7 +158,7 @@ func (tail *Tail) tailFileSync() {
 					for _, line := range partitionString(string(line), tail.MaxLineSize) {
 						tail.Lines <- &Line{line, now}
 					}
-				}else{
+				} else {
 					tail.Lines <- &Line{string(line), now}
 				}
 			}
@@ -173,7 +174,13 @@ func (tail *Tail) tailFileSync() {
 			// `tail.watcher` implementation (inotify or polling).
 			if err == io.EOF {
 				if changes == nil {
-					changes = tail.watcher.ChangeEvents()
+
+					if tail.Follow {
+						changes = tail.watcher.ChangeEvents()
+					} else {
+						tail.close()
+						return
+					}
 				}
 
 				select {
@@ -182,7 +189,7 @@ func (tail *Tail) tailFileSync() {
 						// File got deleted/renamed
 						if tail.ReOpen {
 							// TODO: no logging in a library?
-							log.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
+							log.Printf("Re-opening moved/deleted/truncated file %s ...", tail.Filename)
 							err := tail.reopen()
 							if err != nil {
 								tail.close()
@@ -222,7 +229,7 @@ func partitionString(s string, chunkSize int) []string {
 		panic("invalid chunkSize")
 	}
 	length := len(s)
-	chunks := 1 + length/chunkSize 
+	chunks := 1 + length/chunkSize
 	start := 0
 	end := chunkSize
 	parts := make([]string, 0, chunks)
