@@ -101,25 +101,27 @@ func _TestReOpen(_t *testing.T, poll bool) {
 	<-time.After(100 * time.Millisecond)
 	t.CreateFile("test.txt", "more\ndata\n")
 	if poll {
+		// Give polling a chance to read the just-written lines (more;
+		// data), before we recreate the file again below.
 		<-time.After(POLL_DURATION)
 	}
 
 	// rename must trigger reopen
 	<-time.After(100 * time.Millisecond)
-	println("going to rename")
 	t.RenameFile("test.txt", "test.txt.rotated")
 	<-time.After(100 * time.Millisecond)
-	t.CreateFile("test.txt", "endofworld")
 	if poll {
+		// This time, wait a bit before creating the file to test
+		// PollingFileWatcher's BlockUntilExists.
 		<-time.After(POLL_DURATION)
 	}
+	t.CreateFile("test.txt", "endofworld")
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 
-	println("Stopping tail")
 	tail.Stop()
 }
 

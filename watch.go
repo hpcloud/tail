@@ -105,8 +105,15 @@ var POLL_DURATION time.Duration
 // BlockUntilExists blocks until the file comes into existence. If the
 // file already exists, then block until it is created again.
 func (fw *PollingFileWatcher) BlockUntilExists() error {
-	panic("not implemented")
-	return nil
+	for {
+		if _, err := os.Stat(fw.Filename); err == nil {
+			return nil
+		}else if !os.IsNotExist(err) {
+			return err
+		}
+		time.Sleep(POLL_DURATION)
+		println("blocking..")
+	}
 }
 
 func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
