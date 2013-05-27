@@ -120,10 +120,10 @@ func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
 	ch := make(chan bool)
 	stop := make(chan bool)
 	var once sync.Once
-	every2Seconds := time.Tick(2 * time.Second)
 	var prevModTime time.Time
 
-	// XXX: use tomb.Tomb to cleanly managed these goroutines.
+	// XXX: use tomb.Tomb to cleanly manage these goroutines. replace
+	// the panic (below) with tomb's Kill.
 
 	stopAndClose := func() {
 		go func() {
@@ -164,19 +164,6 @@ func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
 				select {
 				case ch <- true:
 				default:
-				}
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			select {
-			case <-every2Seconds:
-				// XXX: not using file descriptor as per contract.
-				if _, err := os.Stat(fw.Filename); os.IsNotExist(err) {
-					once.Do(stopAndClose)
-					return
 				}
 			}
 		}
