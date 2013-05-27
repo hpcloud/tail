@@ -80,10 +80,12 @@ func TestLocationEnd(_t *testing.T) {
 	tail.Stop()
 }
 
-func TestReOpen(_t *testing.T) {
+func _TestReOpen(_t *testing.T, poll bool) {
 	t := NewTailTest("reopen", _t)
 	t.CreateFile("test.txt", "hello\nworld\n")
-	tail := t.StartTail("test.txt", Config{Follow: true, ReOpen: true, Location: -1})
+	tail := t.StartTail(
+		"test.txt",
+		Config{Follow: true, ReOpen: true, Poll: poll, Location: -1})
 	go t.VerifyTailOutput(tail, []string{"hello", "world", "more", "data", "endofworld"})
 
 	// deletion must trigger reopen
@@ -106,6 +108,16 @@ func TestReOpen(_t *testing.T) {
 	tail.Stop()
 }
 
+// The use of polling file watcher could affect file rotation
+// (detected via renames), so test these explicitly.
+
+func TestReOpenWithPoll(_t *testing.T) {
+	_TestReOpen(_t, true)
+}
+
+func TestReOpenWithoutPoll(_t *testing.T) {
+	_TestReOpen(_t, false)
+}
 
 // Test library
 
