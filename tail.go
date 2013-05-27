@@ -173,12 +173,20 @@ func (tail *Tail) tailFileSync() {
 			// `tail.watcher` implementation (inotify or polling).
 			if err == io.EOF {
 				if changes == nil {
-					changes = tail.watcher.ChangeEvents()
+					st, err := tail.file.Stat()
+					if err != nil {
+						tail.close()
+						tail.Kill(err)
+						return
+					}
+					changes = tail.watcher.ChangeEvents(st)
 				}
 
 				select {
 				case _, ok := <-changes:
 					if !ok {
+						changes = nil // XXX: how to kill changes' goroutine?
+
 						// File got deleted/renamed
 						if tail.ReOpen {
 							// TODO: no logging in a library?
@@ -191,7 +199,7 @@ func (tail *Tail) tailFileSync() {
 							}
 							log.Printf("Successfully reopened %s", tail.Filename)
 							tail.reader = bufio.NewReader(tail.file)
-							changes = nil // XXX: how to kill changes' goroutine?
+							
 							continue
 						} else {
 							log.Printf("Finishing because file has been moved/deleted: %s", tail.Filename)

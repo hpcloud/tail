@@ -81,11 +81,18 @@ func TestLocationEnd(_t *testing.T) {
 }
 
 func _TestReOpen(_t *testing.T, poll bool) {
-	t := NewTailTest("reopen", _t)
+	var name string
+	if poll {
+		name = "reopen-polling"
+	}else {
+		name = "reopen-inotify"
+	}
+	t := NewTailTest(name, _t)
 	t.CreateFile("test.txt", "hello\nworld\n")
 	tail := t.StartTail(
 		"test.txt",
 		Config{Follow: true, ReOpen: true, Poll: poll, Location: -1})
+	
 	go t.VerifyTailOutput(tail, []string{"hello", "world", "more", "data", "endofworld"})
 
 	// deletion must trigger reopen
@@ -93,18 +100,26 @@ func _TestReOpen(_t *testing.T, poll bool) {
 	t.RemoveFile("test.txt")
 	<-time.After(100 * time.Millisecond)
 	t.CreateFile("test.txt", "more\ndata\n")
+	if poll {
+		<-time.After(POLL_DURATION)
+	}
 
 	// rename must trigger reopen
 	<-time.After(100 * time.Millisecond)
+	println("going to rename")
 	t.RenameFile("test.txt", "test.txt.rotated")
 	<-time.After(100 * time.Millisecond)
 	t.CreateFile("test.txt", "endofworld")
+	if poll {
+		<-time.After(POLL_DURATION)
+	}
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
-	
+
+	println("Stopping tail")
 	tail.Stop()
 }
 
@@ -183,7 +198,12 @@ func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
 	for idx, line := range lines {
 		tailedLine, ok := <-tail.Lines
 		if !ok {
-			t.Fatalf("tail ended early; expecting more: %v", lines[idx:])
+			err := tail.Wait()
+			if err != nil {
+				t.Fatal("tail ended early with error: %v", err)
+			}else{
+				t.Fatalf("tail ended early; expecting more: %v", lines[idx:])
+			}
 		}
 		if tailedLine == nil {
 			t.Fatalf("tail.Lines returned nil; not possible")
