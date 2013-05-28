@@ -6,9 +6,8 @@ import (
 	"github.com/howeyc/fsnotify"
 	"os"
 	"path/filepath"
-	"time"
 	"sync"
-	"fmt"
+	"time"
 )
 
 // FileWatcher monitors file-level events.
@@ -34,7 +33,6 @@ func NewInotifyFileWatcher(filename string) *InotifyFileWatcher {
 }
 
 func (fw *InotifyFileWatcher) BlockUntilExists() error {
-	fmt.Println("BUE(inotify): creating watcher")
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -50,7 +48,6 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 	}
 	defer w.RemoveWatch(filepath.Dir(fw.Filename))
 
-	fmt.Println("BUE(inotify): does file exist now?")
 	// Do a real check now as the file might have been created before
 	// calling `WatchFlags` above.
 	if _, err = os.Stat(fw.Filename); !os.IsNotExist(err) {
@@ -58,10 +55,8 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 		return err
 	}
 
-	fmt.Printf("BUE(inotify): checking events (last: %v)\n", err)
 	for {
 		evt := <-w.Event
-		fmt.Printf("BUE(inotify): got event: %v\n", evt)
 		if evt.Name == fw.Filename {
 			break
 		}
@@ -93,7 +88,6 @@ func (fw *InotifyFileWatcher) ChangeEvents(fi os.FileInfo) chan bool {
 			prevSize := fw.Size
 
 			evt := <-w.Event
-			fmt.Printf("inotify change evt: %v\n", evt)
 			switch {
 			case evt.IsDelete():
 				fallthrough
@@ -109,7 +103,6 @@ func (fw *InotifyFileWatcher) ChangeEvents(fi os.FileInfo) chan bool {
 				}
 				fw.Size = fi.Size()
 
-				fmt.Printf("WATCH(inotify): prevSize=%d; fs.Size=%d\n", prevSize, fw.Size)
 				if prevSize > 0 && prevSize > fw.Size {
 					return
 				}
@@ -143,11 +136,10 @@ func (fw *PollingFileWatcher) BlockUntilExists() error {
 	for {
 		if _, err := os.Stat(fw.Filename); err == nil {
 			return nil
-		}else if !os.IsNotExist(err) {
+		} else if !os.IsNotExist(err) {
 			return err
 		}
 		time.Sleep(POLL_DURATION)
-		println("blocking..")
 	}
 	panic("unreachable")
 }
@@ -169,7 +161,7 @@ func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
 	}
 
 	fw.Size = origFi.Size()
-	
+
 	go func() {
 		prevSize := fw.Size
 		for {
@@ -198,7 +190,6 @@ func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
 
 			// Was the file truncated?
 			fw.Size = fi.Size()
-			fmt.Printf("WATCH(poll): prevSize=%d; fs.Size=%d\n", prevSize, fw.Size)
 			if prevSize > 0 && prevSize > fw.Size {
 				once.Do(stopAndClose)
 				continue
@@ -212,8 +203,6 @@ func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
 				case ch <- true:
 				default:
 				}
-			}else{
-				fmt.Printf("polling; not modified: %v == %v\n", modTime, prevModTime)
 			}
 		}
 	}()

@@ -85,7 +85,7 @@ func _TestReOpen(_t *testing.T, poll bool) {
 	var name string
 	if poll {
 		name = "reopen-polling"
-	}else {
+	} else {
 		name = "reopen-inotify"
 	}
 	t := NewTailTest(name, _t)
@@ -93,7 +93,7 @@ func _TestReOpen(_t *testing.T, poll bool) {
 	tail := t.StartTail(
 		"test.txt",
 		Config{Follow: true, ReOpen: true, Poll: poll, Location: -1})
-	
+
 	go t.VerifyTailOutput(tail, []string{"hello", "world", "more", "data", "endofworld"})
 
 	// deletion must trigger reopen
@@ -138,12 +138,11 @@ func TestReOpenPolling(_t *testing.T) {
 	_TestReOpen(_t, true)
 }
 
-
 func _TestReSeek(_t *testing.T, poll bool) {
 	var name string
 	if poll {
 		name = "reseek-polling"
-	}else {
+	} else {
 		name = "reseek-inotify"
 	}
 	t := NewTailTest(name, _t)
@@ -151,7 +150,7 @@ func _TestReSeek(_t *testing.T, poll bool) {
 	tail := t.StartTail(
 		"test.txt",
 		Config{Follow: true, ReOpen: true, Poll: poll, Location: -1})
-	
+
 	go t.VerifyTailOutput(tail, []string{
 		"a really long string goes here", "hello", "world", "h311o", "w0r1d", "endofworld"})
 
@@ -176,7 +175,7 @@ func _TestReSeek(_t *testing.T, poll bool) {
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 
-	println("Stopping...")
+	println("Stopping (RESEEK)...")
 	tail.Stop()
 }
 
@@ -190,7 +189,6 @@ func TestReSeekInotify(_t *testing.T) {
 func TestReSeekPolling(_t *testing.T) {
 	_TestReSeek(_t, true)
 }
-
 
 // Test library
 
@@ -275,7 +273,7 @@ func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
 			err := tail.Wait()
 			if err != nil {
 				t.Fatal("tail ended early with error: %v", err)
-			}else{
+			} else {
 				t.Fatalf("tail ended early; expecting more: %v", lines[idx:])
 			}
 		}

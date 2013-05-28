@@ -13,8 +13,8 @@ import (
 )
 
 type Line struct {
-	Text     string
-	Time     time.Time
+	Text string
+	Time time.Time
 }
 
 // Tail configuration
@@ -156,7 +156,7 @@ func (tail *Tail) tailFileSync() {
 					for _, line := range partitionString(string(line), tail.MaxLineSize) {
 						tail.Lines <- &Line{line, now}
 					}
-				}else{
+				} else {
 					tail.Lines <- &Line{string(line), now}
 				}
 			}
@@ -186,7 +186,6 @@ func (tail *Tail) tailFileSync() {
 					if !ok {
 						changes = nil // XXX: how to kill changes' goroutine?
 
-						log.Println("Changes channel is closed.")
 						// File got deleted/renamed/truncated.
 						if tail.ReOpen {
 							// TODO: no logging in a library?
@@ -199,7 +198,7 @@ func (tail *Tail) tailFileSync() {
 							}
 							log.Printf("Successfully reopened %s", tail.Filename)
 							tail.reader = bufio.NewReader(tail.file)
-							
+
 							continue
 						} else {
 							log.Printf("Finishing because file has been moved/deleted: %s", tail.Filename)
@@ -208,7 +207,6 @@ func (tail *Tail) tailFileSync() {
 						}
 					}
 				case <-tail.Dying():
-					log.Println("Dying..")
 					tail.close()
 					return
 				}
@@ -231,7 +229,7 @@ func partitionString(s string, chunkSize int) []string {
 		panic("invalid chunkSize")
 	}
 	length := len(s)
-	chunks := 1 + length/chunkSize 
+	chunks := 1 + length/chunkSize
 	start := 0
 	end := chunkSize
 	parts := make([]string, 0, chunks)
