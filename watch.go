@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 	"sync"
-	// "fmt"
+	"fmt"
 )
 
 // FileWatcher monitors file-level events.
@@ -46,7 +46,7 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 	defer w.RemoveWatch(filepath.Dir(fw.Filename))
 	for {
 		evt := <-w.Event
-		// fmt.Printf("block until exits (inotify) evt: %v\n", evt)
+		fmt.Printf("block until exits (inotify) evt: %v\n", evt)
 		if evt.Name == fw.Filename {
 			break
 		}
@@ -78,7 +78,7 @@ func (fw *InotifyFileWatcher) ChangeEvents(fi os.FileInfo) chan bool {
 			prevSize := fw.Size
 
 			evt := <-w.Event
-			// fmt.Printf("inotify change evt: %v\n", evt)
+			fmt.Printf("inotify change evt: %v\n", evt)
 			switch {
 			case evt.IsDelete():
 				fallthrough
@@ -94,7 +94,7 @@ func (fw *InotifyFileWatcher) ChangeEvents(fi os.FileInfo) chan bool {
 				}
 				fw.Size = fi.Size()
 
-				// fmt.Printf("WATCH: prevSize=%d; fs.Size=%d\n", prevSize, fw.Size)
+				fmt.Printf("WATCH(inotify): prevSize=%d; fs.Size=%d\n", prevSize, fw.Size)
 				if prevSize > 0 && prevSize > fw.Size {
 					return
 				}
@@ -154,8 +154,11 @@ func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
 			stop <- true
 		}()
 	}
+
+	fw.Size = origFi.Size()
 	
 	go func() {
+		prevSize := fw.Size
 		for {
 			select {
 			case <-stop:
@@ -180,6 +183,14 @@ func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
 				continue
 			}
 
+			// Was the file truncated?
+			fw.Size = fi.Size()
+			fmt.Printf("WATCH(poll): prevSize=%d; fs.Size=%d\n", prevSize, fw.Size)
+			if prevSize > 0 && prevSize > fw.Size {
+				once.Do(stopAndClose)
+				continue
+			}
+
 			// If the file was changed since last check, notify.
 			modTime := fi.ModTime()
 			if modTime != prevModTime {
@@ -188,6 +199,8 @@ func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
 				case ch <- true:
 				default:
 				}
+			}else{
+				fmt.Printf("polling; not modified: %v == %v\n", modTime, prevModTime)
 			}
 		}
 	}()
