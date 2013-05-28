@@ -13,8 +13,8 @@ import (
 )
 
 type Line struct {
-	Text     string
-	Time     time.Time
+	Text string
+	Time time.Time
 }
 
 // Tail configuration
@@ -102,8 +102,7 @@ func (tail *Tail) reopen() error {
 		if err != nil {
 			if os.IsNotExist(err) {
 				log.Printf("Waiting for %s to appear...", tail.Filename)
-				err := tail.watcher.BlockUntilExists()
-				if err != nil {
+				if err := tail.watcher.BlockUntilExists(); err != nil {
 					return fmt.Errorf("Failed to detect creation of %s: %s", tail.Filename, err)
 				}
 				continue
@@ -157,7 +156,7 @@ func (tail *Tail) tailFileSync() {
 					for _, line := range partitionString(string(line), tail.MaxLineSize) {
 						tail.Lines <- &Line{line, now}
 					}
-				}else{
+				} else {
 					tail.Lines <- &Line{string(line), now}
 				}
 			}
@@ -187,10 +186,10 @@ func (tail *Tail) tailFileSync() {
 					if !ok {
 						changes = nil // XXX: how to kill changes' goroutine?
 
-						// File got deleted/renamed
+						// File got deleted/renamed/truncated.
 						if tail.ReOpen {
 							// TODO: no logging in a library?
-							log.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
+							log.Printf("Re-opening moved/deleted/truncated file %s ...", tail.Filename)
 							err := tail.reopen()
 							if err != nil {
 								tail.close()
@@ -199,7 +198,7 @@ func (tail *Tail) tailFileSync() {
 							}
 							log.Printf("Successfully reopened %s", tail.Filename)
 							tail.reader = bufio.NewReader(tail.file)
-							
+
 							continue
 						} else {
 							log.Printf("Finishing because file has been moved/deleted: %s", tail.Filename)
@@ -230,7 +229,7 @@ func partitionString(s string, chunkSize int) []string {
 		panic("invalid chunkSize")
 	}
 	length := len(s)
-	chunks := 1 + length/chunkSize 
+	chunks := 1 + length/chunkSize
 	start := 0
 	end := chunkSize
 	parts := make([]string, 0, chunks)

@@ -6,14 +6,14 @@ import (
 	"github.com/howeyc/fsnotify"
 	"os"
 	"path/filepath"
-	"time"
 	"sync"
+	"time"
 )
 
 // FileWatcher monitors file-level events.
 type FileWatcher interface {
 	// BlockUntilExists blocks until the missing file comes into
-	// existence. If the file already exists, block until it is recreated.
+	// existence. If the file already exists, returns immediately.
 	BlockUntilExists() error
 
 	// ChangeEvents returns a channel of events corresponding to the
@@ -24,10 +24,11 @@ type FileWatcher interface {
 // InotifyFileWatcher uses inotify to monitor file changes.
 type InotifyFileWatcher struct {
 	Filename string
+	Size     int64
 }
 
 func NewInotifyFileWatcher(filename string) *InotifyFileWatcher {
-	fw := &InotifyFileWatcher{filename}
+	fw := &InotifyFileWatcher{filename, 0}
 	return fw
 }
 
@@ -37,11 +38,23 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 		return err
 	}
 	defer w.Close()
-	err = w.WatchFlags(filepath.Dir(fw.Filename), fsnotify.FSN_CREATE)
+
+	dirname := filepath.Dir(fw.Filename)
+
+	// Watch for new files to be created in the parent directory.
+	err = w.WatchFlags(dirname, fsnotify.FSN_CREATE)
 	if err != nil {
 		return err
 	}
 	defer w.RemoveWatch(filepath.Dir(fw.Filename))
+
+	// Do a real check now as the file might have been created before
+	// calling `WatchFlags` above.
+	if _, err = os.Stat(fw.Filename); !os.IsNotExist(err) {
+		// file exists, or stat returned an error.
+		return err
+	}
+
 	for {
 		evt := <-w.Event
 		if evt.Name == fw.Filename {
@@ -52,7 +65,7 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 }
 
 // ChangeEvents returns a channel that gets updated when the file is ready to be read.
-func (fw *InotifyFileWatcher) ChangeEvents(_ os.FileInfo) chan bool {
+func (fw *InotifyFileWatcher) ChangeEvents(fi os.FileInfo) chan bool {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		panic(err)
@@ -64,20 +77,36 @@ func (fw *InotifyFileWatcher) ChangeEvents(_ os.FileInfo) chan bool {
 
 	ch := make(chan bool)
 
+	fw.Size = fi.Size()
+
 	go func() {
+		defer w.Close()
+		defer w.RemoveWatch(fw.Filename)
+		defer close(ch)
+
 		for {
+			prevSize := fw.Size
+
 			evt := <-w.Event
 			switch {
 			case evt.IsDelete():
 				fallthrough
 
 			case evt.IsRename():
-				close(ch)
-				w.RemoveWatch(fw.Filename)
-				w.Close()
 				return
 
 			case evt.IsModify():
+				fi, err := os.Stat(fw.Filename)
+				if err != nil {
+					// XXX: no panic here
+					panic(err)
+				}
+				fw.Size = fi.Size()
+
+				if prevSize > 0 && prevSize > fw.Size {
+					return
+				}
+
 				// send only if channel is empty.
 				select {
 				case ch <- true:
@@ -93,22 +122,21 @@ func (fw *InotifyFileWatcher) ChangeEvents(_ os.FileInfo) chan bool {
 // PollingFileWatcher polls the file for changes.
 type PollingFileWatcher struct {
 	Filename string
+	Size     int64
 }
 
 func NewPollingFileWatcher(filename string) *PollingFileWatcher {
-	fw := &PollingFileWatcher{filename}
+	fw := &PollingFileWatcher{filename, 0}
 	return fw
 }
 
 var POLL_DURATION time.Duration
 
-// BlockUntilExists blocks until the file comes into existence. If the
-// file already exists, then block until it is created again.
 func (fw *PollingFileWatcher) BlockUntilExists() error {
 	for {
 		if _, err := os.Stat(fw.Filename); err == nil {
 			return nil
-		}else if !os.IsNotExist(err) {
+		} else if !os.IsNotExist(err) {
 			return err
 		}
 		time.Sleep(POLL_DURATION)
@@ -131,8 +159,11 @@ func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
 			stop <- true
 		}()
 	}
-	
+
+	fw.Size = origFi.Size()
+
 	go func() {
+		prevSize := fw.Size
 		for {
 			select {
 			case <-stop:
@@ -153,6 +184,13 @@ func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
 
 			// File got moved/rename within POLL_DURATION?
 			if !os.SameFile(origFi, fi) {
+				once.Do(stopAndClose)
+				continue
+			}
+
+			// Was the file truncated?
+			fw.Size = fi.Size()
+			if prevSize > 0 && prevSize > fw.Size {
 				once.Do(stopAndClose)
 				continue
 			}
