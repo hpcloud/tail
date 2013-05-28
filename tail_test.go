@@ -11,6 +11,7 @@ import (
 	"os"
 	"testing"
 	"time"
+	"./watch"
 )
 
 func init() {
@@ -104,7 +105,7 @@ func _TestReOpen(_t *testing.T, poll bool) {
 	if poll {
 		// Give polling a chance to read the just-written lines (more;
 		// data), before we recreate the file again below.
-		<-time.After(POLL_DURATION)
+		<-time.After(watch.POLL_DURATION)
 	}
 
 	// rename must trigger reopen
@@ -114,7 +115,7 @@ func _TestReOpen(_t *testing.T, poll bool) {
 	if poll {
 		// This time, wait a bit before creating the file to test
 		// PollingFileWatcher's BlockUntilExists.
-		<-time.After(POLL_DURATION)
+		<-time.After(watch.POLL_DURATION)
 	}
 	t.CreateFile("test.txt", "endofworld")
 
@@ -159,7 +160,7 @@ func _TestReSeek(_t *testing.T, poll bool) {
 	if poll {
 		// Give polling a chance to read the just-written lines (more;
 		// data), before we truncate the file again below.
-		<-time.After(POLL_DURATION)
+		<-time.After(watch.POLL_DURATION)
 	}
 	println("truncating..")
 	t.TruncateFile("test.txt", "h311o\nw0r1d\nendofworld\n")
@@ -167,7 +168,7 @@ func _TestReSeek(_t *testing.T, poll bool) {
 	if poll {
 		// Give polling a chance to read the just-written lines (more;
 		// data), before we recreate the file again below.
-		<-time.After(POLL_DURATION)
+		<-time.After(watch.POLL_DURATION)
 	}
 
 	// Delete after a reasonable delay, to give tail sufficient time
@@ -206,7 +207,7 @@ func NewTailTest(name string, t *testing.T) TailTest {
 	}
 
 	// Use a smaller poll duration for faster test runs.
-	POLL_DURATION = 25 * time.Millisecond
+	watch.POLL_DURATION = 25 * time.Millisecond
 
 	return tt
 }

@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"time"
+	"github.com/ActiveState/tail/watch"
 )
 
 type Line struct {
@@ -34,7 +35,7 @@ type Tail struct {
 
 	file    *os.File
 	reader  *bufio.Reader
-	watcher FileWatcher
+	watcher watch.FileWatcher
 
 	tomb.Tomb // provides: Done, Kill, Dying
 }
@@ -62,9 +63,9 @@ func TailFile(filename string, config Config) (*Tail, error) {
 		Config:   config}
 
 	if t.Poll {
-		t.watcher = NewPollingFileWatcher(filename)
+		t.watcher = watch.NewPollingFileWatcher(filename)
 	} else {
-		t.watcher = NewInotifyFileWatcher(filename)
+		t.watcher = watch.NewInotifyFileWatcher(filename)
 	}
 
 	if t.MustExist {
