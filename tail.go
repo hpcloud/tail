@@ -102,6 +102,9 @@ func (tail *Tail) reopen() error {
 		if err != nil {
 			if os.IsNotExist(err) {
 				log.Printf("Waiting for %s to appear...", tail.Filename)
+				// XXX: potential race condition here, as the file
+				// could have been created right after out IsNotExist
+				// check above. this will lead to blocking here forever.
 				err := tail.watcher.BlockUntilExists()
 				if err != nil {
 					return fmt.Errorf("Failed to detect creation of %s: %s", tail.Filename, err)
@@ -187,6 +190,7 @@ func (tail *Tail) tailFileSync() {
 					if !ok {
 						changes = nil // XXX: how to kill changes' goroutine?
 
+						log.Println("Changes channel is closed.")
 						// File got deleted/renamed
 						if tail.ReOpen {
 							// TODO: no logging in a library?
@@ -208,6 +212,7 @@ func (tail *Tail) tailFileSync() {
 						}
 					}
 				case <-tail.Dying():
+					log.Println("Dying..")
 					tail.close()
 					return
 				}

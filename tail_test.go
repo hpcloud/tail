@@ -14,6 +14,7 @@ import (
 )
 
 func init() {
+	// Clear the temporary test directory
 	err := os.RemoveAll(".test")
 	if err != nil {
 		panic(err)
@@ -172,7 +173,7 @@ func _TestReSeek(_t *testing.T, poll bool) {
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
-	// XXX t.RemoveFile("test.txt")
+	t.RemoveFile("test.txt")
 
 	println("Stopping...")
 	tail.Stop()
@@ -204,6 +205,10 @@ func NewTailTest(name string, t *testing.T) TailTest {
 	if err != nil {
 		tt.Fatal(err)
 	}
+
+	// Use a smaller poll duration for faster test runs.
+	POLL_DURATION = 25 * time.Millisecond
+
 	return tt
 }
 
