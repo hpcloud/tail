@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"sync"
 )
 
 // FileWatcher monitors file-level events.
@@ -17,7 +18,7 @@ type FileWatcher interface {
 
 	// ChangeEvents returns a channel of events corresponding to the
 	// times the file is ready to be read.
-	ChangeEvents() chan bool
+	ChangeEvents(os.FileInfo) chan bool
 }
 
 // InotifyFileWatcher uses inotify to monitor file changes.
@@ -50,7 +51,8 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 	return nil
 }
 
-func (fw *InotifyFileWatcher) ChangeEvents() chan bool {
+// ChangeEvents returns a channel that gets updated when the file is ready to be read.
+func (fw *InotifyFileWatcher) ChangeEvents(_ os.FileInfo) chan bool {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		panic(err)
@@ -98,17 +100,38 @@ func NewPollingFileWatcher(filename string) *PollingFileWatcher {
 	return fw
 }
 
+var POLL_DURATION time.Duration
+
+// BlockUntilExists blocks until the file comes into existence. If the
+// file already exists, then block until it is created again.
 func (fw *PollingFileWatcher) BlockUntilExists() error {
-	panic("not implemented")
-	return nil
+	for {
+		if _, err := os.Stat(fw.Filename); err == nil {
+			return nil
+		}else if !os.IsNotExist(err) {
+			return err
+		}
+		time.Sleep(POLL_DURATION)
+	}
+	panic("unreachable")
 }
 
-func (fw *PollingFileWatcher) ChangeEvents() chan bool {
+func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
 	ch := make(chan bool)
 	stop := make(chan bool)
-	every2Seconds := time.Tick(2 * time.Second)
-
+	var once sync.Once
 	var prevModTime time.Time
+
+	// XXX: use tomb.Tomb to cleanly manage these goroutines. replace
+	// the panic (below) with tomb's Kill.
+
+	stopAndClose := func() {
+		go func() {
+			close(ch)
+			stop <- true
+		}()
+	}
+	
 	go func() {
 		for {
 			select {
@@ -117,17 +140,24 @@ func (fw *PollingFileWatcher) ChangeEvents() chan bool {
 			default:
 			}
 
-			time.Sleep(250 * time.Millisecond)
+			time.Sleep(POLL_DURATION)
 			fi, err := os.Stat(fw.Filename)
 			if err != nil {
 				if os.IsNotExist(err) {
-					// below goroutine (every2Seconds) will catch up
-					// eventually and stop us.
+					once.Do(stopAndClose)
 					continue
 				}
+				/// XXX: do not panic here.
 				panic(err)
 			}
 
+			// File got moved/rename within POLL_DURATION?
+			if !os.SameFile(origFi, fi) {
+				once.Do(stopAndClose)
+				continue
+			}
+
+			// If the file was changed since last check, notify.
 			modTime := fi.ModTime()
 			if modTime != prevModTime {
 				prevModTime = modTime
@@ -139,19 +169,9 @@ func (fw *PollingFileWatcher) ChangeEvents() chan bool {
 		}
 	}()
 
-	go func() {
-		for {
-			select {
-			case <-every2Seconds:
-				// XXX: not using file descriptor as per contract.
-				if _, err := os.Stat(fw.Filename); os.IsNotExist(err) {
-					stop <- true
-					close(ch)
-					return
-				}
-			}
-		}
-	}()
-
 	return ch
+}
+
+func init() {
+	POLL_DURATION = 250 * time.Millisecond
 }

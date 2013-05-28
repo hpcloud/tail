@@ -80,10 +80,19 @@ func TestLocationEnd(_t *testing.T) {
 	tail.Stop()
 }
 
-func TestReOpen(_t *testing.T) {
-	t := NewTailTest("reopen", _t)
+func _TestReOpen(_t *testing.T, poll bool) {
+	var name string
+	if poll {
+		name = "reopen-polling"
+	}else {
+		name = "reopen-inotify"
+	}
+	t := NewTailTest(name, _t)
 	t.CreateFile("test.txt", "hello\nworld\n")
-	tail := t.StartTail("test.txt", Config{Follow: true, ReOpen: true, Location: -1})
+	tail := t.StartTail(
+		"test.txt",
+		Config{Follow: true, ReOpen: true, Poll: poll, Location: -1})
+	
 	go t.VerifyTailOutput(tail, []string{"hello", "world", "more", "data", "endofworld"})
 
 	// deletion must trigger reopen
@@ -91,21 +100,41 @@ func TestReOpen(_t *testing.T) {
 	t.RemoveFile("test.txt")
 	<-time.After(100 * time.Millisecond)
 	t.CreateFile("test.txt", "more\ndata\n")
+	if poll {
+		// Give polling a chance to read the just-written lines (more;
+		// data), before we recreate the file again below.
+		<-time.After(POLL_DURATION)
+	}
 
 	// rename must trigger reopen
 	<-time.After(100 * time.Millisecond)
 	t.RenameFile("test.txt", "test.txt.rotated")
 	<-time.After(100 * time.Millisecond)
+	if poll {
+		// This time, wait a bit before creating the file to test
+		// PollingFileWatcher's BlockUntilExists.
+		<-time.After(POLL_DURATION)
+	}
 	t.CreateFile("test.txt", "endofworld")
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
-	
+
 	tail.Stop()
 }
 
+// The use of polling file watcher could affect file rotation
+// (detected via renames), so test these explicitly.
+
+func TestReOpenWithPoll(_t *testing.T) {
+	_TestReOpen(_t, true)
+}
+
+func TestReOpenWithoutPoll(_t *testing.T) {
+	_TestReOpen(_t, false)
+}
 
 // Test library
 
@@ -171,7 +200,12 @@ func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
 	for idx, line := range lines {
 		tailedLine, ok := <-tail.Lines
 		if !ok {
-			t.Fatalf("tail ended early; expecting more: %v", lines[idx:])
+			err := tail.Wait()
+			if err != nil {
+				t.Fatal("tail ended early with error: %v", err)
+			}else{
+				t.Fatalf("tail ended early; expecting more: %v", lines[idx:])
+			}
 		}
 		if tailedLine == nil {
 			t.Fatalf("tail.Lines returned nil; not possible")
