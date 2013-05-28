@@ -128,11 +128,11 @@ func _TestReOpen(_t *testing.T, poll bool) {
 // The use of polling file watcher could affect file rotation
 // (detected via renames), so test these explicitly.
 
-func TestReOpenWithoutPoll(_t *testing.T) {
+func TestReOpenInotify(_t *testing.T) {
 	_TestReOpen(_t, false)
 }
 
-func TestReOpenWithPoll(_t *testing.T) {
+func TestReOpenPolling(_t *testing.T) {
 	_TestReOpen(_t, true)
 }
 
@@ -145,15 +145,22 @@ func _TestReSeek(_t *testing.T, poll bool) {
 		name = "reseek-inotify"
 	}
 	t := NewTailTest(name, _t)
-	t.CreateFile("test.txt", "hello\nworld\n")
+	t.CreateFile("test.txt", "a really long string goes here\nhello\nworld\n")
 	tail := t.StartTail(
 		"test.txt",
 		Config{Follow: true, ReOpen: true, Poll: poll, Location: -1})
 	
-	go t.VerifyTailOutput(tail, []string{"hello", "world", "h311o", "w0r1d", "endofworld"})
+	go t.VerifyTailOutput(tail, []string{
+		"a really long string goes here", "hello", "world", "h311o", "w0r1d", "endofworld"})
 
 	// truncate now
 	<-time.After(100 * time.Millisecond)
+	if poll {
+		// Give polling a chance to read the just-written lines (more;
+		// data), before we truncate the file again below.
+		<-time.After(POLL_DURATION)
+	}
+	println("truncating..")
 	t.TruncateFile("test.txt", "h311o\nw0r1d\nendofworld\n")
 	// XXX: is this required for this test function?
 	if poll {
@@ -165,19 +172,20 @@ func _TestReSeek(_t *testing.T, poll bool) {
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
-	t.RemoveFile("test.txt")
+	// XXX t.RemoveFile("test.txt")
 
+	println("Stopping...")
 	tail.Stop()
 }
 
 // The use of polling file watcher could affect file rotation
 // (detected via renames), so test these explicitly.
 
-func TestReSeekWithoutPoll(_t *testing.T) {
+func TestReSeekInotify(_t *testing.T) {
 	_TestReSeek(_t, false)
 }
 
-func TestReSeekWithPoll(_t *testing.T) {
+func TestReSeekPolling(_t *testing.T) {
 	_TestReSeek(_t, true)
 }
 
@@ -235,7 +243,7 @@ func (t TailTest) AppendFile(name string, contents string) {
 }
 
 func (t TailTest) TruncateFile(name string, contents string) {
-	f, err := os.OpenFile(t.path+"/"+name, os.O_WRONLY, 0600)
+	f, err := os.OpenFile(t.path+"/"+name, os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
 		t.Fatal(err)
 	}
