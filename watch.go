@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 	"sync"
+	// "fmt"
 )
 
 // FileWatcher monitors file-level events.
@@ -45,6 +46,7 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 	defer w.RemoveWatch(filepath.Dir(fw.Filename))
 	for {
 		evt := <-w.Event
+		// fmt.Printf("block until exits (inotify) evt: %v\n", evt)
 		if evt.Name == fw.Filename {
 			break
 		}
@@ -53,7 +55,7 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 }
 
 // ChangeEvents returns a channel that gets updated when the file is ready to be read.
-func (fw *InotifyFileWatcher) ChangeEvents(_ os.FileInfo) chan bool {
+func (fw *InotifyFileWatcher) ChangeEvents(fi os.FileInfo) chan bool {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		panic(err)
@@ -65,6 +67,8 @@ func (fw *InotifyFileWatcher) ChangeEvents(_ os.FileInfo) chan bool {
 
 	ch := make(chan bool)
 
+	fw.Size = fi.Size()
+
 	go func() {
 		defer w.Close()
 		defer w.RemoveWatch(fw.Filename)
@@ -74,6 +78,7 @@ func (fw *InotifyFileWatcher) ChangeEvents(_ os.FileInfo) chan bool {
 			prevSize := fw.Size
 
 			evt := <-w.Event
+			// fmt.Printf("inotify change evt: %v\n", evt)
 			switch {
 			case evt.IsDelete():
 				fallthrough
@@ -82,9 +87,14 @@ func (fw *InotifyFileWatcher) ChangeEvents(_ os.FileInfo) chan bool {
 				return
 
 			case evt.IsModify():
-				fi, _ := os.Stat(fw.Filename)
+				fi, err := os.Stat(fw.Filename)
+				if err != nil {
+					// XXX: no panic here
+					panic(err)
+				}
 				fw.Size = fi.Size()
 
+				// fmt.Printf("WATCH: prevSize=%d; fs.Size=%d\n", prevSize, fw.Size)
 				if prevSize > 0 && prevSize > fw.Size {
 					return
 				}
@@ -124,6 +134,7 @@ func (fw *PollingFileWatcher) BlockUntilExists() error {
 			return err
 		}
 		time.Sleep(POLL_DURATION)
+		println("blocking..")
 	}
 	panic("unreachable")
 }
