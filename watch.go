@@ -112,8 +112,8 @@ func (fw *PollingFileWatcher) BlockUntilExists() error {
 			return err
 		}
 		time.Sleep(POLL_DURATION)
-		println("blocking..")
 	}
+	panic("unreachable")
 }
 
 func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
