@@ -14,7 +14,7 @@ import (
 // FileWatcher monitors file-level events.
 type FileWatcher interface {
 	// BlockUntilExists blocks until the missing file comes into
-	// existence. If the file already exists, block until it is recreated.
+	// existence. If the file already exists, returns immediately.
 	BlockUntilExists() error
 
 	// ChangeEvents returns a channel of events corresponding to the
@@ -34,19 +34,34 @@ func NewInotifyFileWatcher(filename string) *InotifyFileWatcher {
 }
 
 func (fw *InotifyFileWatcher) BlockUntilExists() error {
+	fmt.Println("BUE(inotify): creating watcher")
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
 	}
 	defer w.Close()
-	err = w.WatchFlags(filepath.Dir(fw.Filename), fsnotify.FSN_CREATE)
+
+	dirname := filepath.Dir(fw.Filename)
+
+	// Watch for new files to be created in the parent directory.
+	err = w.WatchFlags(dirname, fsnotify.FSN_CREATE)
 	if err != nil {
 		return err
 	}
 	defer w.RemoveWatch(filepath.Dir(fw.Filename))
+
+	fmt.Println("BUE(inotify): does file exist now?")
+	// Do a real check now as the file might have been created before
+	// calling `WatchFlags` above.
+	if _, err = os.Stat(fw.Filename); !os.IsNotExist(err) {
+		// file exists, or stat returned an error.
+		return err
+	}
+
+	fmt.Printf("BUE(inotify): checking events (last: %v)\n", err)
 	for {
 		evt := <-w.Event
-		fmt.Printf("block until exits (inotify) evt: %v\n", evt)
+		fmt.Printf("BUE(inotify): got event: %v\n", evt)
 		if evt.Name == fw.Filename {
 			break
 		}
@@ -124,8 +139,6 @@ func NewPollingFileWatcher(filename string) *PollingFileWatcher {
 
 var POLL_DURATION time.Duration
 
-// BlockUntilExists blocks until the file comes into existence. If the
-// file already exists, then block until it is created again.
 func (fw *PollingFileWatcher) BlockUntilExists() error {
 	for {
 		if _, err := os.Stat(fw.Filename); err == nil {

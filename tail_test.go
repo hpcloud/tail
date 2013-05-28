@@ -123,6 +123,7 @@ func _TestReOpen(_t *testing.T, poll bool) {
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 
+	println("Stopping (REOPEN)...")
 	tail.Stop()
 }
 
