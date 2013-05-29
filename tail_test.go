@@ -143,7 +143,7 @@ func _TestReSeek(_t *testing.T, poll bool) {
 	t.CreateFile("test.txt", "a really long string goes here\nhello\nworld\n")
 	tail := t.StartTail(
 		"test.txt",
-		Config{Follow: true, ReOpen: true, Poll: poll, Location: -1})
+		Config{Follow: true, ReOpen: false, Poll: poll, Location: -1})
 
 	go t.VerifyTailOutput(tail, []string{
 		"a really long string goes here", "hello", "world", "h311o", "w0r1d", "endofworld"})
