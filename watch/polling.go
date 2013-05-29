@@ -3,9 +3,11 @@
 package watch
 
 import (
+	"launchpad.net/tomb"
 	"os"
 	"sync"
 	"time"
+	"fmt"
 )
 
 // PollingFileWatcher polls the file for changes.
@@ -21,14 +23,19 @@ func NewPollingFileWatcher(filename string) *PollingFileWatcher {
 
 var POLL_DURATION time.Duration
 
-func (fw *PollingFileWatcher) BlockUntilExists() error {
+func (fw *PollingFileWatcher) BlockUntilExists(t tomb.Tomb) error {
 	for {
 		if _, err := os.Stat(fw.Filename); err == nil {
 			return nil
 		} else if !os.IsNotExist(err) {
 			return err
 		}
-		time.Sleep(POLL_DURATION)
+		select {
+		case <-time.After(POLL_DURATION):
+			continue
+		case <-t.Dying():
+			return fmt.Errorf("Tomb dying")
+		}
 	}
 	panic("unreachable")
 }

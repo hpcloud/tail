@@ -5,12 +5,12 @@ package tail
 import (
 	"bufio"
 	"fmt"
+	"github.com/ActiveState/tail/watch"
 	"io"
 	"launchpad.net/tomb"
 	"log"
 	"os"
 	"time"
-	"github.com/ActiveState/tail/watch"
 )
 
 type Line struct {
@@ -103,7 +103,7 @@ func (tail *Tail) reopen() error {
 		if err != nil {
 			if os.IsNotExist(err) {
 				log.Printf("Waiting for %s to appear...", tail.Filename)
-				if err := tail.watcher.BlockUntilExists(); err != nil {
+				if err := tail.watcher.BlockUntilExists(tail.Tomb); err != nil {
 					return fmt.Errorf("Failed to detect creation of %s: %s", tail.Filename, err)
 				}
 				continue
@@ -185,7 +185,7 @@ func (tail *Tail) tailFileSync() {
 				select {
 				case _, ok := <-changes:
 					if !ok {
-						changes = nil // XXX: how to kill changes' goroutine?
+						changes = nil // XXX: use tomb to kill changes' goroutine.
 
 						// File got deleted/renamed/truncated.
 						if tail.ReOpen {

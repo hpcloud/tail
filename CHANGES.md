@@ -3,6 +3,7 @@
 * Recognize deletions/renames when using polling file watcher (PR #1)
 * Detect file truncation
 * Fix potential race condition when reopening the file (issue 5)
+* Fix potential blocking of `tail.Stop` (issue 4)
 
 # Feb, 2013
 

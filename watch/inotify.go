@@ -3,9 +3,11 @@
 package watch
 
 import (
+	"fmt"
 	"github.com/howeyc/fsnotify"
 	"os"
 	"path/filepath"
+	"launchpad.net/tomb"
 )
 
 // InotifyFileWatcher uses inotify to monitor file changes.
@@ -19,7 +21,7 @@ func NewInotifyFileWatcher(filename string) *InotifyFileWatcher {
 	return fw
 }
 
-func (fw *InotifyFileWatcher) BlockUntilExists() error {
+func (fw *InotifyFileWatcher) BlockUntilExists(t tomb.Tomb) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -43,12 +45,16 @@ func (fw *InotifyFileWatcher) BlockUntilExists() error {
 	}
 
 	for {
-		evt := <-w.Event
-		if evt.Name == fw.Filename {
-			break
+		select {
+		case evt := <-w.Event:
+			if evt.Name == fw.Filename {
+				return nil
+			}
+		case <-t.Dying():
+			return fmt.Errorf("Tomb dying")
 		}
 	}
-	return nil
+	panic("unreachable")
 }
 
 // ChangeEvents returns a channel that gets updated when the file is ready to be read.

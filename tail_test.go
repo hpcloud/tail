@@ -6,12 +6,12 @@
 package tail
 
 import (
+	"./watch"
 	_ "fmt"
 	"io/ioutil"
 	"os"
 	"testing"
 	"time"
-	"./watch"
 )
 
 func init() {
@@ -102,30 +102,23 @@ func _TestReOpen(_t *testing.T, poll bool) {
 	t.RemoveFile("test.txt")
 	<-time.After(100 * time.Millisecond)
 	t.CreateFile("test.txt", "more\ndata\n")
-	if poll {
-		// Give polling a chance to read the just-written lines (more;
-		// data), before we recreate the file again below.
-		<-time.After(watch.POLL_DURATION)
-	}
 
 	// rename must trigger reopen
 	<-time.After(100 * time.Millisecond)
 	t.RenameFile("test.txt", "test.txt.rotated")
 	<-time.After(100 * time.Millisecond)
-	if poll {
-		// This time, wait a bit before creating the file to test
-		// PollingFileWatcher's BlockUntilExists.
-		<-time.After(watch.POLL_DURATION)
-	}
 	t.CreateFile("test.txt", "endofworld")
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
+	<-time.After(100 * time.Millisecond)
 
-	println("Stopping (REOPEN)...")
-	tail.Stop()
+	// Do not bother with stopping as it could kill the tomb during
+	// the reading of data written above. Timings can vary based on
+	// test environment.
+	// tail.Stop()
 }
 
 // The use of polling file watcher could affect file rotation
@@ -157,27 +150,17 @@ func _TestReSeek(_t *testing.T, poll bool) {
 
 	// truncate now
 	<-time.After(100 * time.Millisecond)
-	if poll {
-		// Give polling a chance to read the just-written lines (more;
-		// data), before we truncate the file again below.
-		<-time.After(watch.POLL_DURATION)
-	}
-	println("truncating..")
 	t.TruncateFile("test.txt", "h311o\nw0r1d\nendofworld\n")
-	// XXX: is this required for this test function?
-	if poll {
-		// Give polling a chance to read the just-written lines (more;
-		// data), before we recreate the file again below.
-		<-time.After(watch.POLL_DURATION)
-	}
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 
-	println("Stopping (RESEEK)...")
-	tail.Stop()
+	// Do not bother with stopping as it could kill the tomb during
+	// the reading of data written above. Timings can vary based on
+	// test environment.
+	// tail.Stop()
 }
 
 // The use of polling file watcher could affect file rotation
@@ -206,8 +189,9 @@ func NewTailTest(name string, t *testing.T) TailTest {
 		tt.Fatal(err)
 	}
 
-	// Use a smaller poll duration for faster test runs.
-	watch.POLL_DURATION = 25 * time.Millisecond
+	// Use a smaller poll duration for faster test runs. Keep it below
+	// 100ms (which value is used as common delays for tests)
+	watch.POLL_DURATION = 5 * time.Millisecond
 
 	return tt
 }
@@ -271,12 +255,11 @@ func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
 	for idx, line := range lines {
 		tailedLine, ok := <-tail.Lines
 		if !ok {
-			err := tail.Wait()
+			err := tail.Err()
 			if err != nil {
-				t.Fatal("tail ended early with error: %v", err)
-			} else {
-				t.Fatalf("tail ended early; expecting more: %v", lines[idx:])
+				t.Errorf("tail ended with error: %v", err)
 			}
+			t.Fatalf("tail ended early; expecting more: %v", lines[idx:])
 		}
 		if tailedLine == nil {
 			t.Fatalf("tail.Lines returned nil; not possible")
