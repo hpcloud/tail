@@ -22,7 +22,7 @@ type Line struct {
 	Time time.Time
 }
 
-// Tail configuration
+// Config is used to specify how a file must be tailed.
 type Config struct {
 	Location    int  // Tail from last N lines (tail -n)
 	Follow      bool // Continue looking for new lines (tail -f)
@@ -45,10 +45,10 @@ type Tail struct {
 	tomb.Tomb // provides: Done, Kill, Dying
 }
 
-// TailFile begins tailing the file with the specified
-// configuration. Output stream is made available via the `Tail.Lines`
-// channel. To handle errors during tailing, invoke the `Wait` method
-// after finishing reading from the `Lines` channel.
+// TailFile begins tailing the file. Output stream is made available
+// via the `Tail.Lines` channel. To handle errors during tailing,
+// invoke the `Wait` or `Err` method after finishing reading from the
+// `Lines` channel.
 func TailFile(filename string, config Config) (*Tail, error) {
 	if !(config.Location == 0 || config.Location == -1) {
 		panic("only 0/-1 values are supported for Location.")
@@ -154,7 +154,7 @@ func (tail *Tail) tailFileSync() {
 	for {
 		line, err := tail.readLine()
 
-		switch(err) {
+		switch err {
 		case nil:
 			if line != nil {
 				tail.sendLine(line)
@@ -164,7 +164,7 @@ func (tail *Tail) tailFileSync() {
 			// available. Wait strategy is based on the `tail.watcher`
 			// implementation (inotify or polling).
 			err := tail.waitForChanges()
-			if err != nil  {
+			if err != nil {
 				if err != ErrStop {
 					tail.Kill(err)
 				}
@@ -184,8 +184,8 @@ func (tail *Tail) tailFileSync() {
 }
 
 // waitForChanges waits until the file has been appended, deleted,
-// moved or truncated. When moved, deleted or truncated - the file
-// will be re-opened if ReOpen is true.
+// moved or truncated. When moved or deleted - the file will be
+// reopened if ReOpen is true. Truncated files are always reopened.
 func (tail *Tail) waitForChanges() error {
 	if tail.changes == nil {
 		st, err := tail.file.Stat()
@@ -197,6 +197,7 @@ func (tail *Tail) waitForChanges() error {
 
 	select {
 	case <-tail.changes.Modified:
+		return nil
 	case <-tail.changes.Deleted:
 		tail.changes = nil
 		if tail.ReOpen {
@@ -216,7 +217,7 @@ func (tail *Tail) waitForChanges() error {
 		// Always reopen truncated files (Follow is true)
 		log.Printf("Re-opening truncated file %s ...", tail.Filename)
 		if err := tail.reopen(); err != nil {
-				return err
+			return err
 		}
 		log.Printf("Successfully reopened truncated %s", tail.Filename)
 		tail.reader = bufio.NewReader(tail.file)
@@ -224,7 +225,7 @@ func (tail *Tail) waitForChanges() error {
 	case <-tail.Dying():
 		return ErrStop
 	}
-	return nil
+	panic("unreachable")
 }
 
 // sendLine sends the line(s) to Lines channel, splitting longer lines
@@ -238,7 +239,7 @@ func (tail *Tail) sendLine(line []byte) {
 		lines = partitionString(
 			string(line), tail.MaxLineSize)
 	}
-	
+
 	for _, line := range lines {
 		tail.Lines <- &Line{line, now}
 	}
