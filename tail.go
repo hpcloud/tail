@@ -40,7 +40,7 @@ type Tail struct {
 	file    *os.File
 	reader  *bufio.Reader
 	watcher watch.FileWatcher
-	changes chan bool
+	changes *watch.FileChanges
 
 	tomb.Tomb // provides: Done, Kill, Dying
 }
@@ -163,7 +163,7 @@ func (tail *Tail) tailFileSync() {
 			// When EOF is reached, wait for more data to become
 			// available. Wait strategy is based on the `tail.watcher`
 			// implementation (inotify or polling).
-			err = tail.waitForChanges()
+			err := tail.waitForChanges()
 			if err != nil  {
 				if err != ErrStop {
 					tail.Kill(err)
@@ -196,26 +196,31 @@ func (tail *Tail) waitForChanges() error {
 	}
 
 	select {
-	case _, ok := <-tail.changes:
-		if !ok {
-			tail.changes = nil
-
-			// File got deleted/renamed/truncated.
-			if tail.ReOpen {
-				// XXX: no logging in a library?
-				log.Printf("Re-opening moved/deleted/truncated file %s ...", tail.Filename)
-				err := tail.reopen()
-				if err != nil {
-					return err
-				}
-				log.Printf("Successfully reopened %s", tail.Filename)
-				tail.reader = bufio.NewReader(tail.file)
-				return nil
-			} else {
-				log.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
-				return ErrStop
+	case <-tail.changes.Modified:
+	case <-tail.changes.Deleted:
+		tail.changes = nil
+		if tail.ReOpen {
+			// XXX: we must not log from a library.
+			log.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
+			if err := tail.reopen(); err != nil {
+				return err
 			}
+			log.Printf("Successfully reopened %s", tail.Filename)
+			tail.reader = bufio.NewReader(tail.file)
+			return nil
+		} else {
+			log.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
+			return ErrStop
 		}
+	case <-tail.changes.Truncated:
+		// Always reopen truncated files (Follow is true)
+		log.Printf("Re-opening truncated file %s ...", tail.Filename)
+		if err := tail.reopen(); err != nil {
+				return err
+		}
+		log.Printf("Successfully reopened truncated %s", tail.Filename)
+		tail.reader = bufio.NewReader(tail.file)
+		return nil
 	case <-tail.Dying():
 		return ErrStop
 	}

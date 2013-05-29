@@ -56,7 +56,9 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t tomb.Tomb) error {
 	panic("unreachable")
 }
 
-func (fw *InotifyFileWatcher) ChangeEvents(t tomb.Tomb, fi os.FileInfo) chan bool {
+func (fw *InotifyFileWatcher) ChangeEvents(t tomb.Tomb, fi os.FileInfo) *FileChanges {
+	changes := NewFileChanges()
+	
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		panic(err)
@@ -66,14 +68,12 @@ func (fw *InotifyFileWatcher) ChangeEvents(t tomb.Tomb, fi os.FileInfo) chan boo
 		panic(err)
 	}
 
-	ch := make(chan bool)
-
 	fw.Size = fi.Size()
 
 	go func() {
 		defer w.Close()
 		defer w.RemoveWatch(fw.Filename)
-		defer close(ch)
+		defer changes.Close()
 
 		for {
 			prevSize := fw.Size
@@ -91,6 +91,7 @@ func (fw *InotifyFileWatcher) ChangeEvents(t tomb.Tomb, fi os.FileInfo) chan boo
 				fallthrough
 
 			case evt.IsRename():
+				changes.NotifyDeleted()
 				return
 
 			case evt.IsModify():
@@ -102,17 +103,14 @@ func (fw *InotifyFileWatcher) ChangeEvents(t tomb.Tomb, fi os.FileInfo) chan boo
 				fw.Size = fi.Size()
 
 				if prevSize > 0 && prevSize > fw.Size {
-					return
+					changes.NotifyTruncated()
+				}else{
+					changes.NotifyModified()
 				}
-
-				// send only if channel is empty.
-				select {
-				case ch <- true:
-				default:
-				}
+				prevSize = fw.Size
 			}
 		}
 	}()
 
-	return ch
+	return changes
 }
