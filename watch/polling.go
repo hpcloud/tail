@@ -7,7 +7,6 @@ import (
 	"os"
 	"sync"
 	"time"
-	"fmt"
 )
 
 // PollingFileWatcher polls the file for changes.
@@ -34,13 +33,13 @@ func (fw *PollingFileWatcher) BlockUntilExists(t tomb.Tomb) error {
 		case <-time.After(POLL_DURATION):
 			continue
 		case <-t.Dying():
-			return fmt.Errorf("Tomb dying")
+			return tomb.ErrDying
 		}
 	}
 	panic("unreachable")
 }
 
-func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
+func (fw *PollingFileWatcher) ChangeEvents(t tomb.Tomb, origFi os.FileInfo) chan bool {
 	ch := make(chan bool)
 	stop := make(chan bool)
 	var once sync.Once
@@ -64,6 +63,9 @@ func (fw *PollingFileWatcher) ChangeEvents(origFi os.FileInfo) chan bool {
 			select {
 			case <-stop:
 				return
+			case <-t.Dying():
+				once.Do(stopAndClose)
+				continue
 			default:
 			}
 

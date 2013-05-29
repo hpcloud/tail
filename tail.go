@@ -179,17 +179,17 @@ func (tail *Tail) tailFileSync() {
 						tail.Kill(err)
 						return
 					}
-					changes = tail.watcher.ChangeEvents(st)
+					changes = tail.watcher.ChangeEvents(tail.Tomb, st)
 				}
 
 				select {
 				case _, ok := <-changes:
 					if !ok {
-						changes = nil // XXX: use tomb to kill changes' goroutine.
+						changes = nil
 
 						// File got deleted/renamed/truncated.
 						if tail.ReOpen {
-							// TODO: no logging in a library?
+							// XXX: no logging in a library?
 							log.Printf("Re-opening moved/deleted/truncated file %s ...", tail.Filename)
 							err := tail.reopen()
 							if err != nil {
@@ -202,7 +202,7 @@ func (tail *Tail) tailFileSync() {
 
 							continue
 						} else {
-							log.Printf("Finishing because file has been moved/deleted: %s", tail.Filename)
+							log.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
 							tail.close()
 							return
 						}

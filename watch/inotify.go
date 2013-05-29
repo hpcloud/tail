@@ -3,7 +3,6 @@
 package watch
 
 import (
-	"fmt"
 	"github.com/howeyc/fsnotify"
 	"os"
 	"path/filepath"
@@ -51,14 +50,14 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t tomb.Tomb) error {
 				return nil
 			}
 		case <-t.Dying():
-			return fmt.Errorf("Tomb dying")
+			return tomb.ErrDying
 		}
 	}
 	panic("unreachable")
 }
 
 // ChangeEvents returns a channel that gets updated when the file is ready to be read.
-func (fw *InotifyFileWatcher) ChangeEvents(fi os.FileInfo) chan bool {
+func (fw *InotifyFileWatcher) ChangeEvents(t tomb.Tomb, fi os.FileInfo) chan bool {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		panic(err)
@@ -80,7 +79,14 @@ func (fw *InotifyFileWatcher) ChangeEvents(fi os.FileInfo) chan bool {
 		for {
 			prevSize := fw.Size
 
-			evt := <-w.Event
+			var evt *fsnotify.FileEvent
+
+			select {
+			case evt = <-w.Event:
+			case <-t.Dying():
+				return
+			}
+
 			switch {
 			case evt.IsDelete():
 				fallthrough

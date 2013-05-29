@@ -1,9 +1,10 @@
 # May, 2013
 
-* Recognize deletions/renames when using polling file watcher (PR #1)
+* Detect file deletions/renames in polling file watcher (PR #1)
 * Detect file truncation
 * Fix potential race condition when reopening the file (issue 5)
 * Fix potential blocking of `tail.Stop` (issue 4)
+* Fix uncleaned up ChangeEvents goroutines after calling tail.Stop
 
 # Feb, 2013
 

@@ -15,6 +15,6 @@ type FileWatcher interface {
 
 	// ChangeEvents returns a channel of events corresponding to the
 	// times the file is ready to be read.
-	ChangeEvents(os.FileInfo) chan bool
+	ChangeEvents(tomb.Tomb, os.FileInfo) chan bool
 }
 
