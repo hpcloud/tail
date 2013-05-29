@@ -56,7 +56,6 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t tomb.Tomb) error {
 	panic("unreachable")
 }
 
-// ChangeEvents returns a channel that gets updated when the file is ready to be read.
 func (fw *InotifyFileWatcher) ChangeEvents(t tomb.Tomb, fi os.FileInfo) chan bool {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {

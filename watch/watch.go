@@ -14,7 +14,8 @@ type FileWatcher interface {
 	BlockUntilExists(tomb.Tomb) error
 
 	// ChangeEvents returns a channel of events corresponding to the
-	// times the file is ready to be read.
+	// times the file is ready to be read. The channel will be closed
+	// if the file gets deleted, renamed or truncated.
 	ChangeEvents(tomb.Tomb, os.FileInfo) chan bool
 }
 
