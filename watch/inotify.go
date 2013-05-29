@@ -107,6 +107,7 @@ func (fw *InotifyFileWatcher) ChangeEvents(t tomb.Tomb, fi os.FileInfo) *FileCha
 				}else{
 					changes.NotifyModified()
 				}
+				prevSize = fw.Size
 			}
 		}
 	}()

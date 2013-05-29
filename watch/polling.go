@@ -80,8 +80,10 @@ func (fw *PollingFileWatcher) ChangeEvents(t tomb.Tomb, origFi os.FileInfo) *Fil
 			fw.Size = fi.Size()
 			if prevSize > 0 && prevSize > fw.Size {
 				changes.NotifyTruncated()
+				prevSize = fw.Size
 				continue
 			}
+			prevSize = fw.Size
 
 			// File was appended to (changed)?
 			modTime := fi.ModTime()
