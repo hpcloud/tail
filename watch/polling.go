@@ -5,7 +5,6 @@ package watch
 import (
 	"launchpad.net/tomb"
 	"os"
-	"sync"
 	"time"
 )
 
@@ -39,33 +38,23 @@ func (fw *PollingFileWatcher) BlockUntilExists(t tomb.Tomb) error {
 	panic("unreachable")
 }
 
-func (fw *PollingFileWatcher) ChangeEvents(t tomb.Tomb, origFi os.FileInfo) chan bool {
-	ch := make(chan bool)
-	stop := make(chan bool)
-	var once sync.Once
+func (fw *PollingFileWatcher) ChangeEvents(t tomb.Tomb, origFi os.FileInfo) *FileChanges {
+	changes := NewFileChanges()
 	var prevModTime time.Time
 
 	// XXX: use tomb.Tomb to cleanly manage these goroutines. replace
 	// the panic (below) with tomb's Kill.
 
-	stopAndClose := func() {
-		go func() {
-			close(ch)
-			stop <- true
-		}()
-	}
-
 	fw.Size = origFi.Size()
 
 	go func() {
+		defer changes.Close()
+		
 		prevSize := fw.Size
 		for {
 			select {
-			case <-stop:
-				return
 			case <-t.Dying():
-				once.Do(stopAndClose)
-				continue
+				return
 			default:
 			}
 
@@ -73,39 +62,37 @@ func (fw *PollingFileWatcher) ChangeEvents(t tomb.Tomb, origFi os.FileInfo) chan
 			fi, err := os.Stat(fw.Filename)
 			if err != nil {
 				if os.IsNotExist(err) {
-					once.Do(stopAndClose)
-					continue
+					// File does not exist (has been deleted).
+					changes.NotifyDeleted()
+					return
 				}
 				/// XXX: do not panic here.
 				panic(err)
 			}
 
-			// File got moved/rename within POLL_DURATION?
+			// File got moved/renamed?
 			if !os.SameFile(origFi, fi) {
-				once.Do(stopAndClose)
-				continue
+				changes.NotifyDeleted()
+				return
 			}
 
-			// Was the file truncated?
+			// File got truncated?
 			fw.Size = fi.Size()
 			if prevSize > 0 && prevSize > fw.Size {
-				once.Do(stopAndClose)
+				changes.NotifyTruncated()
 				continue
 			}
 
-			// If the file was changed since last check, notify.
+			// File was appended to (changed)?
 			modTime := fi.ModTime()
 			if modTime != prevModTime {
 				prevModTime = modTime
-				select {
-				case ch <- true:
-				default:
-				}
+				changes.NotifyModified()
 			}
 		}
 	}()
 
-	return ch
+	return changes
 }
 
 func init() {
