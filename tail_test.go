@@ -66,6 +66,20 @@ func TestLocationFull(_t *testing.T) {
 	tail.Stop()
 }
 
+func TestLocationFullDontFollow(_t *testing.T) {
+	t := NewTailTest("location-full-dontfollow", _t)
+	t.CreateFile("test.txt", "hello\nworld\n")
+	tail := t.StartTail("test.txt", Config{Follow: false, Location: -1})
+	go t.VerifyTailOutput(tail, []string{"hello", "world"})
+
+	// Add more data only after reasonable delay.
+	<-time.After(100 * time.Millisecond)
+	t.AppendFile("test.txt", "more\ndata\n")
+	<-time.After(100 * time.Millisecond)
+
+	tail.Stop()
+}
+
 func TestLocationEnd(_t *testing.T) {
 	t := NewTailTest("location-end", _t)
 	t.CreateFile("test.txt", "hello\nworld\n")

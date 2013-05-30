@@ -58,10 +58,6 @@ func TailFile(filename string, config Config) (*Tail, error) {
 		panic("cannot set ReOpen without Follow.")
 	}
 
-	if !config.Follow {
-		panic("Follow=false is not supported.")
-	}
-
 	t := &Tail{
 		Filename: filename,
 		Lines:    make(chan *Line),
@@ -160,6 +156,9 @@ func (tail *Tail) tailFileSync() {
 				tail.sendLine(line)
 			}
 		case io.EOF:
+			if !tail.Follow {
+				return
+			}
 			// When EOF is reached, wait for more data to become
 			// available. Wait strategy is based on the `tail.watcher`
 			// implementation (inotify or polling).
