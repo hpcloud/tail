@@ -188,6 +188,27 @@ func TestReSeekPolling(_t *testing.T) {
 	_TestReSeek(_t, true)
 }
 
+func TestRateLimiting(_t *testing.T) {
+	t := NewTailTest("rate-limiting", _t)
+	t.CreateFile("test.txt", "hello\nworld\nagain\n")
+	config := Config{
+		Follow:    true,
+		Location:  -1,
+		LimitRate: 2}
+	tail := t.StartTail("test.txt", config)
+	// TODO: also verify that tail resumes after the cooloff period.
+	go t.VerifyTailOutput(
+		tail, []string{
+			"hello", "world", "again",
+			"Too much activity; entering a cool-off period"})
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(100 * time.Millisecond)
+	t.RemoveFile("test.txt")
+	tail.Stop()
+}
+
 // Test library
 
 type TailTest struct {
@@ -285,6 +306,6 @@ func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
 	}
 	line, ok := <-tail.Lines
 	if ok {
-		t.Fatalf("more content from tail: %s", line.Text)
+		t.Fatalf("more content from tail: %+v", line)
 	}
 }
