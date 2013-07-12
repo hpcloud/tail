@@ -270,7 +270,7 @@ func (tail *Tail) sendLine(line []byte) bool {
 		tail.Lines <- &Line{line, now, nil}
 		rate := tail.rateMon.Tick(nowUnix)
 		if tail.LimitRate > 0 && rate > tail.LimitRate {
-			log.Printf("Rate limit (%v < %v) reached file (%v); entering 1s cooloff period.\n",
+			log.Printf("Rate limit (%v < %v) reached on file (%v); entering 1s cooloff period.\n",
 				tail.LimitRate,
 				rate,
 				tail.Filename)
