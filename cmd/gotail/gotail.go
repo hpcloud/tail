@@ -11,7 +11,7 @@ import (
 
 func args2config() tail.Config {
 	config := tail.Config{Follow: true}
-	flag.IntVar(&config.Location, "n", 0, "tail from the last Nth location")
+	flag.Int64Var(&config.Location, "n", 0, "tail from the last Nth location")
 	flag.BoolVar(&config.Follow, "f", false, "wait for additional data to be appended to the file")
 	flag.BoolVar(&config.ReOpen, "F", false, "follow, and track file rename/rotation")
 	flag.BoolVar(&config.Poll, "p", false, "use polling, instead of inotify")

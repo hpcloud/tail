@@ -26,7 +26,7 @@ type Line struct {
 
 // Config is used to specify how a file must be tailed.
 type Config struct {
-	Location    int   // Tail from last N lines (tail -n)
+	Location    int64 // Tail from last N lines (tail -n)
 	Follow      bool  // Continue looking for new lines (tail -f)
 	ReOpen      bool  // Reopen recreated files (tail -F)
 	MustExist   bool  // Fail early if the file does not exist
@@ -55,10 +55,6 @@ type Tail struct {
 // invoke the `Wait` or `Err` method after finishing reading from the
 // `Lines` channel.
 func TailFile(filename string, config Config) (*Tail, error) {
-	if !(config.Location == 0 || config.Location == -1) {
-		panic("only 0/-1 values are supported for Location.")
-	}
-
 	if config.ReOpen && !config.Follow {
 		panic("cannot set ReOpen without Follow.")
 	}
@@ -143,8 +139,9 @@ func (tail *Tail) tailFileSync() {
 	}
 
 	// Seek to requested location on first open of the file.
-	if tail.Location == 0 {
-		_, err := tail.file.Seek(0, 2) // Seek to the file end
+	if tail.Location >= 0 {
+		// Seek relative to file end
+		_, err := tail.file.Seek(tail.Location, 2) 
 		if err != nil {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
 			return
