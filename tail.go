@@ -24,6 +24,7 @@ type Line struct {
 	// log line itself.
 }
 
+// SeekInfo represents arguments to `os.Seek`
 type SeekInfo struct {
 	Offset int64
 	Whence int // os.SEEK_*
@@ -31,7 +32,7 @@ type SeekInfo struct {
 
 // Config is used to specify how a file must be tailed.
 type Config struct {
-	Location    *SeekInfo // Seek before tailing
+	Location    *SeekInfo // Seek to this location before tailing
 	Follow      bool      // Continue looking for new lines (tail -f)
 	ReOpen      bool      // Reopen recreated files (tail -F)
 	MustExist   bool      // Fail early if the file does not exist

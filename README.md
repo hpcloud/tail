@@ -20,8 +20,3 @@ designed to work with log rotation tools.
 
     go get github.com/ActiveState/tail/...
 
-## TODO
-
-* Arbitrary values for `Location`
-* `Location` could be specified in both lines and bytes metrics.
-
