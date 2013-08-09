@@ -24,15 +24,20 @@ type Line struct {
 	// log line itself.
 }
 
+type SeekInfo struct {
+	Offset int64
+	Whence int // os.SEEK_*
+}
+
 // Config is used to specify how a file must be tailed.
 type Config struct {
-	Location    int   // Tail from last N lines (tail -n)
-	Follow      bool  // Continue looking for new lines (tail -f)
-	ReOpen      bool  // Reopen recreated files (tail -F)
-	MustExist   bool  // Fail early if the file does not exist
-	Poll        bool  // Poll for file changes instead of using inotify
-	MaxLineSize int   // If non-zero, split longer lines into multiple lines
-	LimitRate   int64 // If non-zero, limit the rate of read log lines
+	Location    *SeekInfo // Seek before tailing
+	Follow      bool      // Continue looking for new lines (tail -f)
+	ReOpen      bool      // Reopen recreated files (tail -F)
+	MustExist   bool      // Fail early if the file does not exist
+	Poll        bool      // Poll for file changes instead of using inotify
+	MaxLineSize int       // If non-zero, split longer lines into multiple lines
+	LimitRate   int64     // If non-zero, limit the rate of read log lines
 	// by this much per second.
 }
 
@@ -55,10 +60,6 @@ type Tail struct {
 // invoke the `Wait` or `Err` method after finishing reading from the
 // `Lines` channel.
 func TailFile(filename string, config Config) (*Tail, error) {
-	if !(config.Location == 0 || config.Location == -1) {
-		panic("only 0/-1 values are supported for Location.")
-	}
-
 	if config.ReOpen && !config.Follow {
 		panic("cannot set ReOpen without Follow.")
 	}
@@ -143,8 +144,9 @@ func (tail *Tail) tailFileSync() {
 	}
 
 	// Seek to requested location on first open of the file.
-	if tail.Location == 0 {
-		_, err := tail.file.Seek(0, 2) // Seek to the file end
+	if tail.Location != nil {
+		_, err := tail.file.Seek(tail.Location.Offset, tail.Location.Whence)
+		// log.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
 		if err != nil {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
 			return
