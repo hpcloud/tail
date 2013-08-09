@@ -9,9 +9,10 @@ import (
 	"os"
 )
 
-func args2config() tail.Config {
+func args2config() (tail.Config, int64) {
 	config := tail.Config{Follow: true}
-	flag.IntVar(&config.Location, "n", 0, "tail from the last Nth location")
+	n := int64(0)
+	flag.Int64Var(&n, "n", 0, "tail from the last Nth location")
 	flag.BoolVar(&config.Follow, "f", false, "wait for additional data to be appended to the file")
 	flag.BoolVar(&config.ReOpen, "F", false, "follow, and track file rename/rotation")
 	flag.BoolVar(&config.Poll, "p", false, "use polling, instead of inotify")
@@ -19,14 +20,18 @@ func args2config() tail.Config {
 	if config.ReOpen {
 		config.Follow = true
 	}
-	return config
+	return config, n
 }
 
 func main() {
-	config := args2config()
+	config, n := args2config()
 	if flag.NFlag() < 1 {
 		fmt.Println("need one or more files as arguments")
 		os.Exit(1)
+	}
+
+	if n != 0 {
+		config.Location = &tail.SeekInfo{-n, os.SEEK_END}
 	}
 
 	done := make(chan bool)
