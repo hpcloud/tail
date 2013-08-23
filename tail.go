@@ -91,6 +91,16 @@ func TailFile(filename string, config Config) (*Tail, error) {
 	return t, nil
 }
 
+// Return the file's current position, like stdio's ftell().
+// But this value is not very accurate.
+func (tail *Tail) Tell() (offser int64, err error) {
+	offset, err = tail.file.Seek(0, os.SEEK_CUR)
+	if err == nil {
+		offset -= int64(tail.reader.Buffered())
+	}
+	return
+}
+
 // Stop stops the tailing activity.
 func (tail *Tail) Stop() error {
 	tail.Kill(nil)
