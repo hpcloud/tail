@@ -93,7 +93,12 @@ func TailFile(filename string, config Config) (*Tail, error) {
 
 // Return the file's current position, like stdio's ftell().
 // But this value is not very accurate.
-func (tail *Tail) Tell() (offser int64, err error) {
+// it may readed one line in the chan(tail.Lines),
+// so it may lost one line.
+func (tail *Tail) Tell() (offset int64, err error) {
+	if tail.file == nil {
+		return
+	}
 	offset, err = tail.file.Seek(0, os.SEEK_CUR)
 	if err == nil {
 		offset -= int64(tail.reader.Buffered())
