@@ -225,6 +225,39 @@ func TestRateLimiting(_t *testing.T) {
 	tail.Stop()
 }
 
+func TestTell(_t *testing.T) {
+	t := NewTailTest("tell-position", _t)
+	t.CreateFile("test.txt", "hello\nworld\nagain\nmore\n")
+	config := Config{
+		Follow:   false,
+		Location: &SeekInfo{0, os.SEEK_SET}}
+	tail := t.StartTail("test.txt", config)
+	// read noe line
+	<-tail.Lines
+	offset, err := tail.Tell()
+	if err != nil {
+		t.Errorf("Tell return error: %s", err.Error())
+	}
+	tail.Done()
+	// tail.close()
+
+	config = Config{
+		Follow:   false,
+		Location: &SeekInfo{offset, os.SEEK_SET}}
+	tail = t.StartTail("test.txt", config)
+	for l := range tail.Lines {
+		// it may readed one line in the chan(tail.Lines),
+		// so it may lost one line.
+		if l.Text != "world" && l.Text != "again" {
+			t.Fatalf("mismatch; expected world or again, but got %s",
+				l.Text)
+		}
+		break
+	}
+	t.RemoveFile("test.txt")
+	tail.Done()
+}
+
 // Test library
 
 type TailTest struct {
