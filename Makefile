@@ -5,3 +5,6 @@ test:	*.go
 
 fmt:
 	go fmt .
+
+fulltest:
+	sudo docker build -t ActiveState/tail .
