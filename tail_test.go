@@ -33,7 +33,7 @@ func TestMustExist(t *testing.T) {
 		t.Error("MustExist:false is violated")
 	}
 	tail.Stop()
-	_, err = TailFile("README.md", Config{Follow: true, MustExist: true})
+	tail, err = TailFile("README.md", Config{Follow: true, MustExist: true})
 	if err != nil {
 		t.Error("MustExist:true on an existing file is violated")
 	}
@@ -333,6 +333,16 @@ func (t TailTest) StartTail(name string, config Config) *Tail {
 		t.Fatal(err)
 	}
 	return tail
+}
+
+func TestStop(t *testing.T) {
+	tail, err := TailFile("/no/such/file", Config{Follow: true, MustExist: false})
+	if err != nil {
+		t.Error("MustExist:false is violated")
+	}
+	if tail.Stop() != nil {
+		t.Error("Should be stoped successfully")
+	}
 }
 
 func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {

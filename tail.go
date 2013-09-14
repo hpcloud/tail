@@ -108,7 +108,7 @@ func (tail *Tail) Tell() (offset int64, err error) {
 
 // Stop stops the tailing activity.
 func (tail *Tail) Stop() error {
-	tail.Kill(nil)
+	tail.Done()
 	return tail.Wait()
 }
 
@@ -147,7 +147,6 @@ func (tail *Tail) readLine() ([]byte, error) {
 }
 
 func (tail *Tail) tailFileSync() {
-	defer tail.Done()
 	defer tail.close()
 
 	if !tail.MustExist {
