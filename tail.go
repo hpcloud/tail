@@ -20,8 +20,7 @@ var (
 type Line struct {
 	Text string
 	Time time.Time
-	Err  error // If non-nil, this is an error from tail, and not a
-	// log line itself.
+	Err  error // Error from tail
 }
 
 // SeekInfo represents arguments to `os.Seek`
@@ -32,14 +31,16 @@ type SeekInfo struct {
 
 // Config is used to specify how a file must be tailed.
 type Config struct {
-	Location    *SeekInfo // Seek to this location before tailing
-	Follow      bool      // Continue looking for new lines (tail -f)
-	ReOpen      bool      // Reopen recreated files (tail -F)
-	MustExist   bool      // Fail early if the file does not exist
-	Poll        bool      // Poll for file changes instead of using inotify
-	MaxLineSize int       // If non-zero, split longer lines into multiple lines
-	LimitRate   int64     // If non-zero, limit the rate of read log lines
-	// by this much per second.
+	// File-specifc
+	Location  *SeekInfo // Seek to this location before tailing
+	ReOpen    bool      // Reopen recreated files (tail -F)
+	MustExist bool      // Fail early if the file does not exist
+	Poll      bool      // Poll for file changes instead of using inotify
+	LimitRate int64     // Maximum read rate (lines per second)
+
+	// Generic IO
+	Follow      bool // Continue looking for new lines (tail -f)
+	MaxLineSize int  // If non-zero, split longer lines into multiple lines
 }
 
 type Tail struct {
@@ -297,28 +298,4 @@ func (tail *Tail) sendLine(line []byte) bool {
 	}
 
 	return true
-}
-
-// partitionString partitions the string into chunks of given size,
-// with the last chunk of variable size.
-func partitionString(s string, chunkSize int) []string {
-	if chunkSize <= 0 {
-		panic("invalid chunkSize")
-	}
-	length := len(s)
-	chunks := 1 + length/chunkSize
-	start := 0
-	end := chunkSize
-	parts := make([]string, 0, chunks)
-	for {
-		if end > length {
-			end = length
-		}
-		parts = append(parts, s[start:end])
-		if end == length {
-			break
-		}
-		start, end = end, end+chunkSize
-	}
-	return parts
 }
