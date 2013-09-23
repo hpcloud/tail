@@ -97,6 +97,10 @@ func (fw *InotifyFileWatcher) ChangeEvents(t tomb.Tomb, fi os.FileInfo) *FileCha
 			case evt.IsModify():
 				fi, err := os.Stat(fw.Filename)
 				if err != nil {
+					if os.IsNotExist(err) {
+						changes.NotifyDeleted()
+						return
+					}
 					// XXX: no panic here
 					panic(err)
 				}
