@@ -4,9 +4,9 @@ package watch
 
 import (
 	"github.com/howeyc/fsnotify"
+	"launchpad.net/tomb"
 	"os"
 	"path/filepath"
-	"launchpad.net/tomb"
 )
 
 // InotifyFileWatcher uses inotify to monitor file changes.
@@ -20,7 +20,7 @@ func NewInotifyFileWatcher(filename string) *InotifyFileWatcher {
 	return fw
 }
 
-func (fw *InotifyFileWatcher) BlockUntilExists(t tomb.Tomb) error {
+func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -56,9 +56,9 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t tomb.Tomb) error {
 	panic("unreachable")
 }
 
-func (fw *InotifyFileWatcher) ChangeEvents(t tomb.Tomb, fi os.FileInfo) *FileChanges {
+func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileChanges {
 	changes := NewFileChanges()
-	
+
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		panic(err)
@@ -108,7 +108,7 @@ func (fw *InotifyFileWatcher) ChangeEvents(t tomb.Tomb, fi os.FileInfo) *FileCha
 
 				if prevSize > 0 && prevSize > fw.Size {
 					changes.NotifyTruncated()
-				}else{
+				} else {
 					changes.NotifyModified()
 				}
 				prevSize = fw.Size
