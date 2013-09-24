@@ -157,11 +157,10 @@ func (tail *Tail) tailFileSync() {
 	if !tail.MustExist {
 		// deferred first open.
 		err := tail.reopen()
-		if err == tomb.ErrDying {
-			return
-		}
 		if err != nil {
-			tail.Kill(err)
+			if err != tomb.ErrDying {
+				tail.Kill(err)
+			}
 			return
 		}
 	}
