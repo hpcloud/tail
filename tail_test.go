@@ -40,6 +40,16 @@ func TestMustExist(t *testing.T) {
 	tail.Stop()
 }
 
+func TestStop(t *testing.T) {
+	tail, err := TailFile("_no_such_file", Config{Follow: true, MustExist: false})
+	if err != nil {
+		t.Error("MustExist:false is violated")
+	}
+	if tail.Stop() != nil {
+		t.Error("Should be stoped successfully")
+	}
+}
+
 func TestMaxLineSize(_t *testing.T) {
 	t := NewTailTest("maxlinesize", _t)
 	t.CreateFile("test.txt", "hello\nworld\nfin\nhe")

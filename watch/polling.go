@@ -21,7 +21,7 @@ func NewPollingFileWatcher(filename string) *PollingFileWatcher {
 
 var POLL_DURATION time.Duration
 
-func (fw *PollingFileWatcher) BlockUntilExists(t tomb.Tomb) error {
+func (fw *PollingFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 	for {
 		if _, err := os.Stat(fw.Filename); err == nil {
 			return nil
@@ -38,7 +38,7 @@ func (fw *PollingFileWatcher) BlockUntilExists(t tomb.Tomb) error {
 	panic("unreachable")
 }
 
-func (fw *PollingFileWatcher) ChangeEvents(t tomb.Tomb, origFi os.FileInfo) *FileChanges {
+func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, origFi os.FileInfo) *FileChanges {
 	changes := NewFileChanges()
 	var prevModTime time.Time
 
@@ -49,7 +49,7 @@ func (fw *PollingFileWatcher) ChangeEvents(t tomb.Tomb, origFi os.FileInfo) *Fil
 
 	go func() {
 		defer changes.Close()
-		
+
 		prevSize := fw.Size
 		for {
 			select {
