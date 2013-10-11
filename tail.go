@@ -146,8 +146,17 @@ func (tail *Tail) reopen() error {
 }
 
 func (tail *Tail) readLine() ([]byte, error) {
-	line, _, err := tail.reader.ReadLine()
-	return line, err
+	line, isPrefix, err := tail.reader.ReadLine()
+	if !isPrefix {
+		return line, err
+	}
+
+	buf := append([]byte(nil), line...)
+	for isPrefix && err == nil {
+		line, isPrefix, err = tail.reader.ReadLine()
+		buf = append(buf, line...)
+	}
+	return buf, err
 }
 
 func (tail *Tail) tailFileSync() {
