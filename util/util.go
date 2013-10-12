@@ -1,10 +1,30 @@
 // Copyright (c) 2013 ActiveState Software Inc. All rights reserved.
 
-package tail
+package util
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"runtime/debug"
+)
+
+type Logger struct {
+	*log.Logger
+}
+
+var LOGGER = &Logger{log.New(os.Stderr, "", log.LstdFlags)}
+
+// fatal is like panic except it displays only the current goroutine's stack.
+func Fatal(format string, v ...interface{}) {
+	// https://github.com/ActiveState/log/blob/master/log.go#L45
+	LOGGER.Output(2, fmt.Sprintf("FATAL -- "+format, v...)+"\n"+string(debug.Stack()))
+	os.Exit(1)
+}
 
 // partitionString partitions the string into chunks of given size,
 // with the last chunk of variable size.
-func partitionString(s string, chunkSize int) []string {
+func PartitionString(s string, chunkSize int) []string {
 	if chunkSize <= 0 {
 		panic("invalid chunkSize")
 	}

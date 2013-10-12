@@ -3,6 +3,7 @@
 package watch
 
 import (
+	"github.com/ActiveState/tail/util"
 	"launchpad.net/tomb"
 	"os"
 	"time"
@@ -43,7 +44,7 @@ func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, origFi os.FileInfo) *Fi
 	var prevModTime time.Time
 
 	// XXX: use tomb.Tomb to cleanly manage these goroutines. replace
-	// the panic (below) with tomb's Kill.
+	// the fatal (below) with tomb's Kill.
 
 	fw.Size = origFi.Size()
 
@@ -66,8 +67,8 @@ func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, origFi os.FileInfo) *Fi
 					changes.NotifyDeleted()
 					return
 				}
-				/// XXX: do not panic here.
-				panic(err)
+				// XXX: report this error back to the user
+				util.Fatal("Failed to stat file %v: %v", fw.Filename, err)
 			}
 
 			// File got moved/renamed?

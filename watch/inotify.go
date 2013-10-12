@@ -3,6 +3,7 @@
 package watch
 
 import (
+	"github.com/ActiveState/tail/util"
 	"github.com/howeyc/fsnotify"
 	"launchpad.net/tomb"
 	"os"
@@ -61,11 +62,11 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
-		panic(err)
+		util.Fatal("Error creating fsnotify watcher: %v", err)
 	}
 	err = w.Watch(fw.Filename)
 	if err != nil {
-		panic(err)
+		util.Fatal("Error watching %v: %v", fw.Filename, err)
 	}
 
 	fw.Size = fi.Size()
@@ -101,8 +102,8 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 						changes.NotifyDeleted()
 						return
 					}
-					// XXX: no panic here
-					panic(err)
+					// XXX: report this error back to the user
+					util.Fatal("Failed to stat file %v: %v", fw.Filename, err)
 				}
 				fw.Size = fi.Size()
 

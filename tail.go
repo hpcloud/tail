@@ -5,6 +5,7 @@ package tail
 import (
 	"bufio"
 	"fmt"
+	"github.com/ActiveState/tail/util"
 	"github.com/ActiveState/tail/watch"
 	"io"
 	"launchpad.net/tomb"
@@ -63,7 +64,7 @@ type Tail struct {
 // `Lines` channel.
 func TailFile(filename string, config Config) (*Tail, error) {
 	if config.ReOpen && !config.Follow {
-		panic("cannot set ReOpen without Follow.")
+		util.Fatal("cannot set ReOpen without Follow.")
 	}
 
 	t := &Tail{
@@ -286,7 +287,7 @@ func (tail *Tail) sendLine(line []byte) bool {
 
 	// Split longer lines
 	if tail.MaxLineSize > 0 && len(line) > tail.MaxLineSize {
-		lines = partitionString(
+		lines = util.PartitionString(
 			string(line), tail.MaxLineSize)
 	}
 
