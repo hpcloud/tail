@@ -5,7 +5,7 @@ package tail
 import (
 	"bufio"
 	"fmt"
-	"github.com/ActiveState/tail/watch"
+	"github.com/funkygao/tail/watch"
 	"io"
 	"launchpad.net/tomb"
 	"log"
