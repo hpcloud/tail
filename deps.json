@@ -1,0 +1,12 @@
+{
+    "github.com/howeyc/fsnotify": {
+        "repo": "github.com/howeyc/fsnotify",
+        "version": "d6220df",
+        "type": "git"
+    },
+    "launchpad.net/tomb": {
+        "repo": "launchpad.net/tomb",
+        "version": "17",
+        "type": "bzr"
+    }
+}
