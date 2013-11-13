@@ -155,9 +155,9 @@ func (fw *PollingFileWatcher) ChangeEvents() chan bool {
 	return ch
 }
 
-// Exit removes open inotify watchers (as the Linux kernel doesn't do it upon
+// Cleanup removes open inotify watchers (as the Linux kernel doesn't do it upon
 // process exit). 
-func Exit() {
+func Cleanup() {
 	inotifyTracker.CloseAll()
 }
 
