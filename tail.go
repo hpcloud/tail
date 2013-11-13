@@ -305,3 +305,9 @@ func (tail *Tail) sendLine(line []byte) bool {
 
 	return true
 }
+
+// Cleanup removes open inotify watchers, because the Linux kernel does do so
+// upon process exit.
+func Cleanup() {
+	watch.Cleanup()
+}
