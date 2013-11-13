@@ -4,11 +4,14 @@
 package tail
 
 import (
+	"fmt"
 	"github.com/howeyc/fsnotify"
 	"os"
 	"path/filepath"
 	"time"
 )
+
+var inotifyTracker *InotifyTracker
 
 type FileWatcher interface {
 	BlockUntilExists() error
@@ -28,28 +31,26 @@ func NewInotifyFileWatcher(filename string) *InotifyFileWatcher {
 // BlockUntilExists blocks until the file comes into existence. If the
 // file already exists, then block until it is created again.
 func (fw *InotifyFileWatcher) BlockUntilExists() error {
-	w, err := fsnotify.NewWatcher()
+	w, err := inotifyTracker.NewWatcher()
 	if err != nil {
 		return err
 	}
-	defer w.Close()
+	defer inotifyTracker.CloseWatcher(w)
 	err = w.WatchFlags(filepath.Dir(fw.Filename), fsnotify.FSN_CREATE)
 	if err != nil {
 		return err
 	}
-	defer w.RemoveWatch(filepath.Dir(fw.Filename))
-	for {
-		evt := <-w.Event
+	for evt := range w.Event {
 		if evt.Name == fw.Filename {
-			break
+			return nil
 		}
 	}
-	return nil
+	return fmt.Errorf("Watcher closed")
 }
 
 // ChangeEvents returns a channel that gets updated when the file is ready to be read.
 func (fw *InotifyFileWatcher) ChangeEvents() chan bool {
-	w, err := fsnotify.NewWatcher()
+	w, err := inotifyTracker.NewWatcher()
 	if err != nil {
 		panic(err)
 	}
@@ -61,16 +62,14 @@ func (fw *InotifyFileWatcher) ChangeEvents() chan bool {
 	ch := make(chan bool)
 
 	go func() {
-		for {
-			evt := <-w.Event
+		for evt := range w.Event {
 			switch {
 			case evt.IsDelete():
 				fallthrough
 
 			case evt.IsRename():
 				close(ch)
-				w.RemoveWatch(fw.Filename)
-				w.Close()
+				inotifyTracker.CloseWatcher(w)
 				return
 
 			case evt.IsModify():
@@ -154,4 +153,14 @@ func (fw *PollingFileWatcher) ChangeEvents() chan bool {
 	}()
 
 	return ch
+}
+
+// Exit removes open inotify watchers (as the Linux kernel doesn't do it upon
+// process exit). 
+func Exit() {
+	inotifyTracker.CloseAll()
+}
+
+func init() {
+	inotifyTracker = NewInotifyTracker()
 }
