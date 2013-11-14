@@ -3,9 +3,9 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/ActiveState/tail"
-	"flag"
 	"os"
 )
 

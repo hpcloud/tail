@@ -3,11 +3,11 @@
 package watch
 
 import (
+	"fmt"
 	"github.com/ActiveState/tail/util"
 	"github.com/howeyc/fsnotify"
 	"launchpad.net/tomb"
 	"os"
-"fmt"
 	"path/filepath"
 )
 
@@ -51,7 +51,7 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 		case evt, ok := <-w.Event:
 			if !ok {
 				return fmt.Errorf("inotify watcher has been closed")
-			}else if evt.Name == fw.Filename {
+			} else if evt.Name == fw.Filename {
 				return nil
 			}
 		case <-t.Dying():
