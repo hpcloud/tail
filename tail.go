@@ -24,6 +24,11 @@ type Line struct {
 	Err  error // Error from tail
 }
 
+// NewLine returns a Line with present time.
+func NewLine(text string) *Line {
+	return &Line{text, time.Now(), nil}
+}
+
 // SeekInfo represents arguments to `os.Seek`
 type SeekInfo struct {
 	Offset int64
