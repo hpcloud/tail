@@ -38,6 +38,7 @@ func TestMustExist(t *testing.T) {
 		t.Error("MustExist:true on an existing file is violated")
 	}
 	tail.Stop()
+	Cleanup()
 }
 
 func TestStop(t *testing.T) {
@@ -48,6 +49,7 @@ func TestStop(t *testing.T) {
 	if tail.Stop() != nil {
 		t.Error("Should be stoped successfully")
 	}
+	Cleanup()
 }
 
 func TestMaxLineSize(_t *testing.T) {
@@ -61,6 +63,7 @@ func TestMaxLineSize(_t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 	tail.Stop()
+	Cleanup()
 }
 
 func TestLocationFull(_t *testing.T) {
@@ -74,6 +77,7 @@ func TestLocationFull(_t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 	tail.Stop()
+	Cleanup()
 }
 
 func TestLocationFullDontFollow(_t *testing.T) {
@@ -88,6 +92,7 @@ func TestLocationFullDontFollow(_t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 
 	tail.Stop()
+	Cleanup()
 }
 
 func TestLocationEnd(_t *testing.T) {
@@ -104,6 +109,7 @@ func TestLocationEnd(_t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 	tail.Stop()
+	Cleanup()
 }
 
 func TestLocationMiddle(_t *testing.T) {
@@ -121,6 +127,7 @@ func TestLocationMiddle(_t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 	tail.Stop()
+	Cleanup()
 }
 
 func _TestReOpen(_t *testing.T, poll bool) {
@@ -160,6 +167,7 @@ func _TestReOpen(_t *testing.T, poll bool) {
 	// the reading of data written above. Timings can vary based on
 	// test environment.
 	// tail.Stop()
+	Cleanup()
 }
 
 // The use of polling file watcher could affect file rotation
@@ -202,6 +210,7 @@ func _TestReSeek(_t *testing.T, poll bool) {
 	// the reading of data written above. Timings can vary based on
 	// test environment.
 	// tail.Stop()
+	Cleanup()
 }
 
 // The use of polling file watcher could affect file rotation
@@ -233,6 +242,7 @@ func TestRateLimiting(_t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 	tail.Stop()
+	Cleanup()
 }
 
 func TestTell(_t *testing.T) {
@@ -266,6 +276,7 @@ func TestTell(_t *testing.T) {
 	}
 	t.RemoveFile("test.txt")
 	tail.Done()
+	Cleanup()
 }
 
 // Test library

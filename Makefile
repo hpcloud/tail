@@ -4,7 +4,7 @@ test:	*.go
 	go test -v
 
 fmt:
-	go fmt .
+	gofmt -w .
 
 # Run the test in an isolated environment.
 fulltest:

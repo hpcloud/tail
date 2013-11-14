@@ -1,9 +1,9 @@
 package watch
 
 type FileChanges struct {
-	Modified chan bool  // Channel to get notified of modifications
+	Modified  chan bool // Channel to get notified of modifications
 	Truncated chan bool // Channel to get notified of truncations
-	Deleted chan bool  // Channel to get notified of deletions/renames
+	Deleted   chan bool // Channel to get notified of deletions/renames
 }
 
 func NewFileChanges() *FileChanges {
