@@ -1,3 +1,16 @@
+# Nov, 2013
+
+* add Cleanup to remove leaky inotify watches (PR #20)
+
+# Aug, 2013
+
+* redesigned Location field (PR #12)
+* add tail.Tell (PR #14)
+
+# July, 2013
+
+* Rate limiting (PR #10)
+
 # May, 2013
 
 * Detect file deletions/renames in polling file watcher (PR #1)
