@@ -13,8 +13,8 @@ import (
 )
 
 type Line struct {
-	Text     string
-	Time     time.Time
+	Text string
+	Time time.Time
 }
 
 type Config struct {
@@ -156,7 +156,7 @@ func (tail *Tail) tailFileSync() {
 					for _, line := range partitionString(string(line), tail.MaxLineSize) {
 						tail.Lines <- &Line{line, now}
 					}
-				}else{
+				} else {
 					tail.Lines <- &Line{string(line), now}
 				}
 			}
@@ -221,7 +221,7 @@ func partitionString(s string, chunkSize int) []string {
 		panic("invalid chunkSize")
 	}
 	length := len(s)
-	chunks := 1 + length/chunkSize 
+	chunks := 1 + length/chunkSize
 	start := 0
 	end := chunkSize
 	parts := make([]string, 0, chunks)

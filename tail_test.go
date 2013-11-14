@@ -102,10 +102,9 @@ func TestReOpen(_t *testing.T) {
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
-	
+
 	tail.Stop()
 }
-
 
 // Test library
 
