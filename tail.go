@@ -47,6 +47,10 @@ type Config struct {
 	// Generic IO
 	Follow      bool // Continue looking for new lines (tail -f)
 	MaxLineSize int  // If non-zero, split longer lines into multiple lines
+
+	// Logging
+	DisableLogging bool        // when true, disables all logging (i.e. Config.Logger isn't used)
+	Logger         *log.Logger // when not specified (nil), this will be set to `log.New(os.Stderr, "", log.LstdFlags)`
 }
 
 type Tail struct {
@@ -75,7 +79,13 @@ func TailFile(filename string, config Config) (*Tail, error) {
 	t := &Tail{
 		Filename: filename,
 		Lines:    make(chan *Line),
-		Config:   config}
+		Config:   config,
+	}
+
+	// when Logger was not specified in config, use default logger
+	if t.Logger == nil {
+		t.Logger = log.New(os.Stderr, "", log.LstdFlags)
+	}
 
 	t.rateMon = new(RateMonitor)
 
@@ -135,7 +145,9 @@ func (tail *Tail) reopen() error {
 		tail.file, err = os.Open(tail.Filename)
 		if err != nil {
 			if os.IsNotExist(err) {
-				log.Printf("Waiting for %s to appear...", tail.Filename)
+				if !tail.DisableLogging {
+					tail.Logger.Printf("Waiting for %s to appear...", tail.Filename)
+				}
 				if err := tail.watcher.BlockUntilExists(&tail.Tomb); err != nil {
 					if err == tomb.ErrDying {
 						return err
@@ -174,7 +186,9 @@ func (tail *Tail) tailFileSync() {
 	// Seek to requested location on first open of the file.
 	if tail.Location != nil {
 		_, err := tail.file.Seek(tail.Location.Offset, tail.Location.Whence)
-		// log.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
+		if !tail.DisableLogging { //
+			tail.Logger.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
+		}
 		if err != nil {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
 			return
@@ -257,24 +271,34 @@ func (tail *Tail) waitForChanges() error {
 		tail.changes = nil
 		if tail.ReOpen {
 			// XXX: we must not log from a library.
-			log.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
+			if !tail.DisableLogging {
+				tail.Logger.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
+			}
 			if err := tail.reopen(); err != nil {
 				return err
 			}
-			log.Printf("Successfully reopened %s", tail.Filename)
+			if !tail.DisableLogging {
+				tail.Logger.Printf("Successfully reopened %s", tail.Filename)
+			}
 			tail.reader = bufio.NewReader(tail.file)
 			return nil
 		} else {
-			log.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
+			if !tail.DisableLogging {
+				tail.Logger.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
+			}
 			return ErrStop
 		}
 	case <-tail.changes.Truncated:
 		// Always reopen truncated files (Follow is true)
-		log.Printf("Re-opening truncated file %s ...", tail.Filename)
+		if !tail.DisableLogging {
+			tail.Logger.Printf("Re-opening truncated file %s ...", tail.Filename)
+		}
 		if err := tail.reopen(); err != nil {
 			return err
 		}
-		log.Printf("Successfully reopened truncated %s", tail.Filename)
+		if !tail.DisableLogging {
+			tail.Logger.Printf("Successfully reopened truncated %s", tail.Filename)
+		}
 		tail.reader = bufio.NewReader(tail.file)
 		return nil
 	case <-tail.Dying():
@@ -300,10 +324,12 @@ func (tail *Tail) sendLine(line []byte) bool {
 		tail.Lines <- &Line{line, now, nil}
 		rate := tail.rateMon.Tick(nowUnix)
 		if tail.LimitRate > 0 && rate > tail.LimitRate {
-			log.Printf("Rate limit (%v < %v) reached on file (%v); entering 1s cooloff period.\n",
-				tail.LimitRate,
-				rate,
-				tail.Filename)
+			if !tail.DisableLogging {
+				tail.Logger.Printf("Rate limit (%v < %v) reached on file (%v); entering 1s cooloff period.\n",
+					tail.LimitRate,
+					rate,
+					tail.Filename)
+			}
 			return false
 		}
 	}
