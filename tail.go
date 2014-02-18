@@ -171,7 +171,7 @@ func (tail *Tail) reopen() error {
 
 func (tail *Tail) readLine() ([]byte, error) {
 	line, isPrefix, err := tail.reader.ReadLine()
-	if !isPrefix {
+	if !isPrefix || tail.MaxLineSize > 0 {
 		return line, err
 	}
 
@@ -208,7 +208,7 @@ func (tail *Tail) tailFileSync() {
 		}
 	}
 
-	tail.reader = bufio.NewReader(tail.file)
+	tail.reader = tail.newReader()
 
 	// Read line by line.
 	for {
@@ -289,7 +289,7 @@ func (tail *Tail) waitForChanges() error {
 				return err
 			}
 			tail.Logger.Printf("Successfully reopened %s", tail.Filename)
-			tail.reader = bufio.NewReader(tail.file)
+			tail.reader = tail.newReader()
 			return nil
 		} else {
 			tail.Logger.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
@@ -302,12 +302,20 @@ func (tail *Tail) waitForChanges() error {
 			return err
 		}
 		tail.Logger.Printf("Successfully reopened truncated %s", tail.Filename)
-		tail.reader = bufio.NewReader(tail.file)
+		tail.reader = tail.newReader()
 		return nil
 	case <-tail.Dying():
 		return ErrStop
 	}
 	panic("unreachable")
+}
+
+func (tail *Tail) newReader() *bufio.Reader {
+	if tail.MaxLineSize > 0 {
+		return bufio.NewReaderSize(tail.file, tail.MaxLineSize+2)
+	} else {
+		return bufio.NewReader(tail.file)
+	}
 }
 
 // sendLine sends the line(s) to Lines channel, splitting longer lines
