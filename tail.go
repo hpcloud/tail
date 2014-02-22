@@ -8,6 +8,7 @@ import (
 	"github.com/ActiveState/tail/util"
 	"github.com/ActiveState/tail/watch"
 	"io"
+	"io/ioutil"
 	"launchpad.net/tomb"
 	"log"
 	"os"
@@ -48,9 +49,9 @@ type Config struct {
 	Follow      bool // Continue looking for new lines (tail -f)
 	MaxLineSize int  // If non-zero, split longer lines into multiple lines
 
-	// Logging
-	DisableLogging bool        // when true, disables all logging (i.e. Config.Logger isn't used)
-	Logger         *log.Logger // when not specified (nil), this will be set to `log.New(os.Stderr, "", log.LstdFlags)`
+	// Logger, when nil, is set to tail.DefaultLogger
+	// To disable logging: set field to tail.DiscardingLogger
+	Logger *log.Logger
 }
 
 type Tail struct {
@@ -66,6 +67,13 @@ type Tail struct {
 
 	tomb.Tomb // provides: Done, Kill, Dying
 }
+
+var (
+	// DefaultLogger is used when Config.Logger == nil
+	DefaultLogger = log.New(os.Stderr, "", log.LstdFlags)
+	// DiscardingLogger can be used to disable logging output
+	DiscardingLogger = log.New(ioutil.Discard, "", 0)
+)
 
 // TailFile begins tailing the file. Output stream is made available
 // via the `Tail.Lines` channel. To handle errors during tailing,
@@ -145,9 +153,7 @@ func (tail *Tail) reopen() error {
 		tail.file, err = os.Open(tail.Filename)
 		if err != nil {
 			if os.IsNotExist(err) {
-				if !tail.DisableLogging {
-					tail.Logger.Printf("Waiting for %s to appear...", tail.Filename)
-				}
+				tail.Logger.Printf("Waiting for %s to appear...", tail.Filename)
 				if err := tail.watcher.BlockUntilExists(&tail.Tomb); err != nil {
 					if err == tomb.ErrDying {
 						return err
@@ -186,9 +192,7 @@ func (tail *Tail) tailFileSync() {
 	// Seek to requested location on first open of the file.
 	if tail.Location != nil {
 		_, err := tail.file.Seek(tail.Location.Offset, tail.Location.Whence)
-		if !tail.DisableLogging { //
-			tail.Logger.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
-		}
+		tail.Logger.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
 		if err != nil {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
 			return
@@ -271,34 +275,24 @@ func (tail *Tail) waitForChanges() error {
 		tail.changes = nil
 		if tail.ReOpen {
 			// XXX: we must not log from a library.
-			if !tail.DisableLogging {
-				tail.Logger.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
-			}
+			tail.Logger.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
 			if err := tail.reopen(); err != nil {
 				return err
 			}
-			if !tail.DisableLogging {
-				tail.Logger.Printf("Successfully reopened %s", tail.Filename)
-			}
+			tail.Logger.Printf("Successfully reopened %s", tail.Filename)
 			tail.reader = bufio.NewReader(tail.file)
 			return nil
 		} else {
-			if !tail.DisableLogging {
-				tail.Logger.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
-			}
+			tail.Logger.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
 			return ErrStop
 		}
 	case <-tail.changes.Truncated:
 		// Always reopen truncated files (Follow is true)
-		if !tail.DisableLogging {
-			tail.Logger.Printf("Re-opening truncated file %s ...", tail.Filename)
-		}
+		tail.Logger.Printf("Re-opening truncated file %s ...", tail.Filename)
 		if err := tail.reopen(); err != nil {
 			return err
 		}
-		if !tail.DisableLogging {
-			tail.Logger.Printf("Successfully reopened truncated %s", tail.Filename)
-		}
+		tail.Logger.Printf("Successfully reopened truncated %s", tail.Filename)
 		tail.reader = bufio.NewReader(tail.file)
 		return nil
 	case <-tail.Dying():
@@ -324,12 +318,10 @@ func (tail *Tail) sendLine(line []byte) bool {
 		tail.Lines <- &Line{line, now, nil}
 		rate := tail.rateMon.Tick(nowUnix)
 		if tail.LimitRate > 0 && rate > tail.LimitRate {
-			if !tail.DisableLogging {
-				tail.Logger.Printf("Rate limit (%v < %v) reached on file (%v); entering 1s cooloff period.\n",
-					tail.LimitRate,
-					rate,
-					tail.Filename)
-			}
+			tail.Logger.Printf("Rate limit (%v < %v) reached on file (%v); entering 1s cooloff period.\n",
+				tail.LimitRate,
+				rate,
+				tail.Filename)
 			return false
 		}
 	}
