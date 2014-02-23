@@ -1,3 +1,7 @@
+# Feb, 2014
+
+* added `Config.Logger` to suppress library logging
+
 # Nov, 2013
 
 * add Cleanup to remove leaky inotify watches (PR #20)
