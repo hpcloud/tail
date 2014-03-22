@@ -132,10 +132,13 @@ func TestLocationMiddle(_t *testing.T) {
 
 func _TestReOpen(_t *testing.T, poll bool) {
 	var name string
+	var delay time.Duration
 	if poll {
 		name = "reopen-polling"
+		delay = 300 * time.Millisecond // account for POLL_DURATION
 	} else {
 		name = "reopen-inotify"
+		delay = 100 * time.Millisecond
 	}
 	t := NewTailTest(name, _t)
 	t.CreateFile("test.txt", "hello\nworld\n")
@@ -146,22 +149,22 @@ func _TestReOpen(_t *testing.T, poll bool) {
 	go t.VerifyTailOutput(tail, []string{"hello", "world", "more", "data", "endofworld"})
 
 	// deletion must trigger reopen
-	<-time.After(100 * time.Millisecond)
+	<-time.After(delay)
 	t.RemoveFile("test.txt")
-	<-time.After(100 * time.Millisecond)
+	<-time.After(delay)
 	t.CreateFile("test.txt", "more\ndata\n")
 
 	// rename must trigger reopen
-	<-time.After(100 * time.Millisecond)
+	<-time.After(delay)
 	t.RenameFile("test.txt", "test.txt.rotated")
-	<-time.After(100 * time.Millisecond)
+	<-time.After(delay)
 	t.CreateFile("test.txt", "endofworld")
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
-	<-time.After(100 * time.Millisecond)
+	<-time.After(delay)
 	t.RemoveFile("test.txt")
-	<-time.After(100 * time.Millisecond)
+	<-time.After(delay)
 
 	// Do not bother with stopping as it could kill the tomb during
 	// the reading of data written above. Timings can vary based on
