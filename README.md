@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/ActiveState/tail.svg)](https://travis-ci.org/ActiveState/tail)
+
 # Go package for tail-ing files
 
 A Go package striving to emulate the features of the BSD `tail` program. 
