@@ -1,3 +1,7 @@
+# Apr, 2014
+
+* allow reading of longer lines if MaxLineSize is unset (PR #24)
+
 # Feb, 2014
 
 * added `Config.Logger` to suppress library logging
