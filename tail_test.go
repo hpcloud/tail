@@ -10,6 +10,7 @@ import (
 	_ "fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -57,6 +58,35 @@ func TestMaxLineSize(_t *testing.T) {
 	t.CreateFile("test.txt", "hello\nworld\nfin\nhe")
 	tail := t.StartTail("test.txt", Config{Follow: true, Location: nil, MaxLineSize: 3})
 	go t.VerifyTailOutput(tail, []string{"hel", "lo", "wor", "ld", "fin", "he"})
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(100 * time.Millisecond)
+	t.RemoveFile("test.txt")
+	tail.Stop()
+	Cleanup()
+}
+
+func TestOver4096ByteLine(_t *testing.T) {
+	t := NewTailTest("Over4096ByteLine", _t)
+	testString := strings.Repeat("a", 4097)
+	t.CreateFile("test.txt", "test\n"+testString+"\nhello\nworld\n")
+	tail := t.StartTail("test.txt", Config{Follow: true, Location: nil})
+	go t.VerifyTailOutput(tail, []string{"test", testString, "hello", "world"})
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(100 * time.Millisecond)
+	t.RemoveFile("test.txt")
+	tail.Stop()
+	Cleanup()
+}
+func TestOver4096ByteLineWithSetMaxLineSize(_t *testing.T) {
+	t := NewTailTest("Over4096ByteLineMaxLineSize", _t)
+	testString := strings.Repeat("a", 4097)
+	t.CreateFile("test.txt", "test\r\n"+testString+"\r\nhello\r\nworld\r\n")
+	tail := t.StartTail("test.txt", Config{Follow: true, Location: nil, MaxLineSize: 4097})
+	go t.VerifyTailOutput(tail, []string{"test", testString, "hello", "world"})
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
