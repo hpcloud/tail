@@ -1,3 +1,5 @@
+// Copyright (c) 2013 ActiveState Software Inc. All rights reserved.
+
 package tail
 
 // RateMonitor is a naive rate monitor that monitors the number of
