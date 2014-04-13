@@ -1,6 +1,6 @@
 # -*- sh -*-
 
-FROM ubuntu:quantal
+FROM ubuntu:13.10
 
 RUN echo "deb http://archive.ubuntu.com/ubuntu quantal main universe" >> /etc/apt/sources.list
 
