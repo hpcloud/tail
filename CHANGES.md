@@ -1,6 +1,7 @@
 # Apr, 2014
 
 * allow reading of longer lines if MaxLineSize is unset (PR #24)
+* updated deps.json to latest fsnotify (441bbc86b1)
 
 # Feb, 2014
 
