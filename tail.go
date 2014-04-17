@@ -20,14 +20,16 @@ var (
 )
 
 type Line struct {
-	Text string
-	Time time.Time
-	Err  error // Error from tail
+	Text    string
+	Time    time.Time
+	Err     error // Error from tail
+	PartNum int64
+	Parts   int64
 }
 
 // NewLine returns a Line with present time.
 func NewLine(text string) *Line {
-	return &Line{text, time.Now(), nil}
+	return &Line{text, time.Now(), nil, 0, 1}
 }
 
 // SeekInfo represents arguments to `os.Seek`
@@ -223,7 +225,9 @@ func (tail *Tail) tailFileSync() {
 					tail.Lines <- &Line{
 						msg,
 						time.Now(),
-						fmt.Errorf(msg)}
+						fmt.Errorf(msg),
+						0, 1,
+					}
 					// Wait a second before seeking till the end of
 					// file when rate limit is reached.
 					select {
@@ -331,8 +335,10 @@ func (tail *Tail) sendLine(line []byte) bool {
 			string(line), tail.MaxLineSize)
 	}
 
-	for _, line := range lines {
-		tail.Lines <- &Line{line, now, nil}
+	parts := int64(len(lines))
+
+	for partnum, line := range lines {
+		tail.Lines <- &Line{line, now, nil, int64(partnum), parts}
 		rate := tail.rateMon.Tick(nowUnix)
 		if tail.LimitRate > 0 && rate > tail.LimitRate {
 			tail.Logger.Printf("Rate limit (%v < %v) reached on file (%v); entering 1s cooloff period.\n",
