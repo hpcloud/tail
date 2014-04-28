@@ -312,6 +312,7 @@ func (tail *Tail) waitForChanges() error {
 
 func (tail *Tail) newReader() *bufio.Reader {
 	if tail.MaxLineSize > 0 {
+		// add 2 to account for newline characters
 		return bufio.NewReaderSize(tail.file, tail.MaxLineSize+2)
 	} else {
 		return bufio.NewReader(tail.file)
