@@ -219,13 +219,13 @@ func (tail *Tail) tailFileSync() {
 			if line != nil {
 				cooloff := !tail.sendLine(line)
 				if cooloff {
-					msg := "Too much activity; entering a cool-off period"
-					tail.Lines <- &Line{
-						msg,
-						time.Now(),
-						fmt.Errorf(msg)}
 					// Wait a second before seeking till the end of
 					// file when rate limit is reached.
+					msg := fmt.Sprintf(
+						"Too much log activity (more than %d lines "+
+							"per second being written); waiting a second "+
+							"before resuming tailing", tail.LimitRate)
+					tail.Lines <- &Line{msg, time.Now(), fmt.Errorf(msg)}
 					select {
 					case <-time.After(time.Second):
 					case <-tail.Dying():
