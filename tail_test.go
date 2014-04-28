@@ -259,7 +259,7 @@ func TestReSeekPolling(_t *testing.T) {
 
 func TestRateLimiting(_t *testing.T) {
 	t := NewTailTest("rate-limiting", _t)
-	t.CreateFile("test.txt", "hello\nworld\nagain\n")
+	t.CreateFile("test.txt", "hello\nworld\nagain\nextra\n")
 	config := Config{
 		Follow:    true,
 		LimitRate: 2}
