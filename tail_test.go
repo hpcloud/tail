@@ -263,12 +263,12 @@ func TestRateLimiting(_t *testing.T) {
 	config := Config{
 		Follow:    true,
 		LimitRate: 2}
+	expecting := "Too much log activity (more than 2 lines per second being written); waiting a second before resuming tailing"
 	tail := t.StartTail("test.txt", config)
 	// TODO: also verify that tail resumes after the cooloff period.
 	go t.VerifyTailOutput(
-		tail, []string{
-			"hello", "world", "again",
-			"Too much activity; entering a cool-off period"})
+		tail, 
+		[]string{"hello", "world", "again", expecting})
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
