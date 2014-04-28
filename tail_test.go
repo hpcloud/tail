@@ -265,16 +265,22 @@ func TestRateLimiting(_t *testing.T) {
 		LimitRate: 2}
 	expecting := "Too much log activity (more than 2 lines per second being written); waiting a second before resuming tailing"
 	tail := t.StartTail("test.txt", config)
+
 	// TODO: also verify that tail resumes after the cooloff period.
 	go t.VerifyTailOutput(
-		tail, 
-		[]string{"hello", "world", "again", expecting})
+		tail,
+		[]string{"hello", "world", "again", expecting, "more", "data"})
+
+	// Add more data only after reasonable delay.
+	<-time.After(1200 * time.Millisecond)
+	t.AppendFile("test.txt", "more\ndata\n")
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
-	tail.Stop()
+
+	// tail.Stop()
 	Cleanup()
 }
 
@@ -393,9 +399,10 @@ func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
 	for idx, line := range lines {
 		tailedLine, ok := <-tail.Lines
 		if !ok {
+			// tail.Lines is closed and empty.
 			err := tail.Err()
 			if err != nil {
-				t.Errorf("tail ended with error: %v", err)
+				t.Fatalf("tail ended with error: %v", err)
 			}
 			t.Fatalf("tail ended early; expecting more: %v", lines[idx:])
 		}

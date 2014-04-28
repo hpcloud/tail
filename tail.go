@@ -231,9 +231,9 @@ func (tail *Tail) tailFileSync() {
 					case <-tail.Dying():
 						return
 					}
-					_, err := tail.file.Seek(0, 2) // Seek to fine end
+					err = tail.seekEnd()
 					if err != nil {
-						tail.Killf("Seek error on %s: %s", tail.Filename, err)
+						tail.Kill(err)
 						return
 					}
 				}
@@ -317,6 +317,16 @@ func (tail *Tail) newReader() *bufio.Reader {
 	} else {
 		return bufio.NewReader(tail.file)
 	}
+}
+
+func (tail *Tail) seekEnd() error {
+	_, err := tail.file.Seek(0, 2)
+	if err != nil {
+		return fmt.Errorf("Seek error on %s: %s", tail.Filename, err)
+	}
+	// Reset the read buffer whenever the file is re-seek'ed
+	tail.reader.Reset(tail.file)
+	return nil
 }
 
 // sendLine sends the line(s) to Lines channel, splitting longer lines
