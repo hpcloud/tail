@@ -1,5 +1,6 @@
 # Apr, 2014
 
+* LimitRate now discards read buffer (PR #28)
 * allow reading of longer lines if MaxLineSize is unset (PR #24)
 * updated deps.json to latest fsnotify (441bbc86b1)
 
