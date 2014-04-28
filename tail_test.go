@@ -402,9 +402,11 @@ func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
 		if tailedLine == nil {
 			t.Fatalf("tail.Lines returned nil; not possible")
 		}
+		// Note: not checking .Err as the `lines` argument is designed
+		// to match error strings as well.
 		if tailedLine.Text != line {
-			t.Fatalf("mismatch; %s (actual) != %s (expected)",
-				tailedLine.Text, line)
+			t.Fatalf("unexpected line/err from tail: expecting ```%s```, but got ```%s```",
+				line, tailedLine.Text)
 		}
 	}
 	line, ok := <-tail.Lines
