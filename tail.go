@@ -236,6 +236,8 @@ func (tail *Tail) tailFileSync() {
 						tail.Killf("Seek error on %s: %s", tail.Filename, err)
 						return
 					}
+					// Reset the read buffer whenever the file is re-seek'ed
+					tail.reader.Reset(tail.file)
 				}
 			}
 		case io.EOF:
