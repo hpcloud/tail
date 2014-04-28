@@ -268,7 +268,7 @@ func TestRateLimiting(_t *testing.T) {
 
 	// TODO: also verify that tail resumes after the cooloff period.
 	go t.VerifyTailOutput(
-		tail, 
+		tail,
 		[]string{"hello", "world", "again", expecting, "more", "data"})
 
 	// Add more data only after reasonable delay.
