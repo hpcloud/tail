@@ -393,9 +393,10 @@ func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
 	for idx, line := range lines {
 		tailedLine, ok := <-tail.Lines
 		if !ok {
+			// tail.Lines is closed and empty.
 			err := tail.Err()
 			if err != nil {
-				t.Errorf("tail ended with error: %v", err)
+				t.Fatalf("tail ended with error: %v", err)
 			}
 			t.Fatalf("tail ended early; expecting more: %v", lines[idx:])
 		}
