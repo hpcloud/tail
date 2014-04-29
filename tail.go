@@ -5,6 +5,7 @@ package tail
 import (
 	"bufio"
 	"fmt"
+	"github.com/ActiveState/tail/ratelimiter"
 	"github.com/ActiveState/tail/util"
 	"github.com/ActiveState/tail/watch"
 	"io"
@@ -39,11 +40,11 @@ type SeekInfo struct {
 // Config is used to specify how a file must be tailed.
 type Config struct {
 	// File-specifc
-	Location  *SeekInfo // Seek to this location before tailing
-	ReOpen    bool      // Reopen recreated files (tail -F)
-	MustExist bool      // Fail early if the file does not exist
-	Poll      bool      // Poll for file changes instead of using inotify
-	LimitRate int64     // Maximum read rate (lines per second)
+	Location    *SeekInfo // Seek to this location before tailing
+	ReOpen      bool      // Reopen recreated files (tail -F)
+	MustExist   bool      // Fail early if the file does not exist
+	Poll        bool      // Poll for file changes instead of using inotify
+	RateLimiter *ratelimiter.LeakyBucket
 
 	// Generic IO
 	Follow      bool // Continue looking for new lines (tail -f)
@@ -63,7 +64,6 @@ type Tail struct {
 	reader  *bufio.Reader
 	watcher watch.FileWatcher
 	changes *watch.FileChanges
-	rateMon *RateMonitor
 
 	tomb.Tomb // provides: Done, Kill, Dying
 }
@@ -94,8 +94,6 @@ func TailFile(filename string, config Config) (*Tail, error) {
 	if t.Logger == nil {
 		t.Logger = log.New(os.Stderr, "", log.LstdFlags)
 	}
-
-	t.rateMon = new(RateMonitor)
 
 	if t.Poll {
 		t.watcher = watch.NewPollingFileWatcher(filename)
@@ -222,9 +220,8 @@ func (tail *Tail) tailFileSync() {
 					// Wait a second before seeking till the end of
 					// file when rate limit is reached.
 					msg := fmt.Sprintf(
-						"Too much log activity (more than %d lines "+
-							"per second being written); waiting a second "+
-							"before resuming tailing", tail.LimitRate)
+						"Too much log activity; waiting a second " +
+							"before resuming tailing")
 					tail.Lines <- &Line{msg, time.Now(), fmt.Errorf(msg)}
 					select {
 					case <-time.After(time.Second):
@@ -333,7 +330,6 @@ func (tail *Tail) seekEnd() error {
 // if necessary. Return false if rate limit is reached.
 func (tail *Tail) sendLine(line []byte) bool {
 	now := time.Now()
-	nowUnix := now.Unix()
 	lines := []string{string(line)}
 
 	// Split longer lines
@@ -344,11 +340,12 @@ func (tail *Tail) sendLine(line []byte) bool {
 
 	for _, line := range lines {
 		tail.Lines <- &Line{line, now, nil}
-		rate := tail.rateMon.Tick(nowUnix)
-		if tail.LimitRate > 0 && rate > tail.LimitRate {
-			tail.Logger.Printf("Rate limit (%v < %v) reached on file (%v); entering 1s cooloff period.\n",
-				tail.LimitRate,
-				rate,
+	}
+
+	if tail.Config.RateLimiter != nil {
+		ok := tail.Config.RateLimiter.Pour(uint16(len(lines)))
+		if !ok {
+			tail.Logger.Printf("Leaky bucket full (%v); entering 1s cooloff period.\n",
 				tail.Filename)
 			return false
 		}
