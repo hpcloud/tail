@@ -1,3 +1,7 @@
+# May, 2014
+
+* Improved rate limiting using leaky bucket (PR #29)
+
 # Apr, 2014
 
 * LimitRate now discards read buffer (PR #28)

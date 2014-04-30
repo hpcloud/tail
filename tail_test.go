@@ -8,6 +8,7 @@ package tail
 import (
 	"./watch"
 	_ "fmt"
+	"github.com/ActiveState/tail/ratelimiter"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -261,15 +262,17 @@ func TestRateLimiting(_t *testing.T) {
 	t := NewTailTest("rate-limiting", _t)
 	t.CreateFile("test.txt", "hello\nworld\nagain\nextra\n")
 	config := Config{
-		Follow:    true,
-		LimitRate: 2}
-	expecting := "Too much log activity (more than 2 lines per second being written); waiting a second before resuming tailing"
+		Follow:      true,
+		RateLimiter: ratelimiter.NewLeakyBucket(2, time.Second)}
+	leakybucketFull := "Too much log activity; waiting a second before resuming tailing"
 	tail := t.StartTail("test.txt", config)
 
 	// TODO: also verify that tail resumes after the cooloff period.
-	go t.VerifyTailOutput(
-		tail,
-		[]string{"hello", "world", "again", expecting, "more", "data"})
+	go t.VerifyTailOutput(tail, []string{
+		"hello", "world", "again",
+		leakybucketFull,
+		"more", "data",
+		leakybucketFull})
 
 	// Add more data only after reasonable delay.
 	<-time.After(1200 * time.Millisecond)
