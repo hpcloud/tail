@@ -170,7 +170,7 @@ func (tail *Tail) reopen() error {
 func (tail *Tail) readLine() ([]byte, error) {
 	line, isPrefix, err := tail.reader.ReadLine()
 	if err != nil {
-		return nil, err
+		return line, err
 	}
 
 	// If MaxLineSize is set, we don't have to join the parts (let
@@ -244,6 +244,7 @@ func (tail *Tail) tailFileSync() {
 				}
 			}
 		case io.EOF:
+			// XXX: should `line` be returned at this point?
 			if !tail.Follow {
 				return
 			}
