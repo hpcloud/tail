@@ -169,10 +169,18 @@ func (tail *Tail) reopen() error {
 
 func (tail *Tail) readLine() ([]byte, error) {
 	line, isPrefix, err := tail.reader.ReadLine()
+	if err != nil {
+		return nil, err
+	}
+
+	// If MaxLineSize is set, we don't have to join the parts (let
+	// Go's reader split them).
 	if !isPrefix || tail.MaxLineSize > 0 {
 		return line, err
 	}
 
+	// Join lines from next read "if the line was too long for the
+	// buffer". XXX: why not use ReadBytes('\n') or Scanner?
 	buf := append([]byte(nil), line...)
 	for isPrefix && err == nil {
 		line, isPrefix, err = tail.reader.ReadLine()
