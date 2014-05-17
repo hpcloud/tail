@@ -213,7 +213,8 @@ func (tail *Tail) tailFileSync() {
 	for {
 		line, err := tail.readLine()
 
-		if err == nil {
+		// Process `line` even if err is EOF.
+		if err == nil || (err == io.EOF && line != "") {
 			cooloff := !tail.sendLine(line)
 			if cooloff {
 				// Wait a second before seeking till the end of
