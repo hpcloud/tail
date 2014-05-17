@@ -213,31 +213,27 @@ func (tail *Tail) tailFileSync() {
 	for {
 		line, err := tail.readLine()
 
-		switch err {
-		case nil:
-			if true {
-				cooloff := !tail.sendLine(line)
-				if cooloff {
-					// Wait a second before seeking till the end of
-					// file when rate limit is reached.
-					msg := fmt.Sprintf(
-						"Too much log activity; waiting a second " +
-							"before resuming tailing")
-					tail.Lines <- &Line{msg, time.Now(), fmt.Errorf(msg)}
-					select {
-					case <-time.After(time.Second):
-					case <-tail.Dying():
-						return
-					}
-					err = tail.seekEnd()
-					if err != nil {
-						tail.Kill(err)
-						return
-					}
+		if err == nil {
+			cooloff := !tail.sendLine(line)
+			if cooloff {
+				// Wait a second before seeking till the end of
+				// file when rate limit is reached.
+				msg := fmt.Sprintf(
+					"Too much log activity; waiting a second " +
+						"before resuming tailing")
+				tail.Lines <- &Line{msg, time.Now(), fmt.Errorf(msg)}
+				select {
+				case <-time.After(time.Second):
+				case <-tail.Dying():
+					return
+				}
+				err = tail.seekEnd()
+				if err != nil {
+					tail.Kill(err)
+					return
 				}
 			}
-		case io.EOF:
-			// XXX: should `line` be returned at this point?
+		}else if err == io.EOF {
 			if !tail.Follow {
 				return
 			}
@@ -251,7 +247,8 @@ func (tail *Tail) tailFileSync() {
 				}
 				return
 			}
-		default: // non-EOF error
+		}else {
+			// non-EOF error
 			tail.Killf("Error reading %s: %s", tail.Filename, err)
 			return
 		}
