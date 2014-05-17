@@ -234,7 +234,7 @@ func (tail *Tail) tailFileSync() {
 					return
 				}
 			}
-		}else if err == io.EOF {
+		} else if err == io.EOF {
 			if !tail.Follow {
 				return
 			}
@@ -248,7 +248,7 @@ func (tail *Tail) tailFileSync() {
 				}
 				return
 			}
-		}else {
+		} else {
 			// non-EOF error
 			tail.Killf("Error reading %s: %s", tail.Filename, err)
 			return
