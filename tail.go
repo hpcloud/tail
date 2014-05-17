@@ -214,7 +214,7 @@ func (tail *Tail) tailFileSync() {
 		}
 	}
 
-	tail.reader = tail.newReader()
+	tail.openReader()
 
 	// Read line by line.
 	for {
@@ -295,7 +295,7 @@ func (tail *Tail) waitForChanges() error {
 				return err
 			}
 			tail.Logger.Printf("Successfully reopened %s", tail.Filename)
-			tail.reader = tail.newReader()
+			tail.openReader()
 			return nil
 		} else {
 			tail.Logger.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
@@ -308,7 +308,7 @@ func (tail *Tail) waitForChanges() error {
 			return err
 		}
 		tail.Logger.Printf("Successfully reopened truncated %s", tail.Filename)
-		tail.reader = tail.newReader()
+		tail.openReader()
 		return nil
 	case <-tail.Dying():
 		return ErrStop
@@ -316,12 +316,12 @@ func (tail *Tail) waitForChanges() error {
 	panic("unreachable")
 }
 
-func (tail *Tail) newReader() *bufio.Reader {
+func (tail *Tail) openReader() {
 	if tail.MaxLineSize > 0 {
 		// add 2 to account for newline characters
-		return bufio.NewReaderSize(tail.file, tail.MaxLineSize+2)
+		tail.reader = bufio.NewReaderSize(tail.file, tail.MaxLineSize+2)
 	} else {
-		return bufio.NewReader(tail.file)
+		tail.reader = bufio.NewReader(tail.file)
 	}
 }
 
