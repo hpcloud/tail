@@ -85,7 +85,7 @@ func TestOver4096ByteLine(_t *testing.T) {
 func TestOver4096ByteLineWithSetMaxLineSize(_t *testing.T) {
 	t := NewTailTest("Over4096ByteLineMaxLineSize", _t)
 	testString := strings.Repeat("a", 4097)
-	t.CreateFile("test.txt", "test\r\n"+testString+"\r\nhello\r\nworld\r\n")
+	t.CreateFile("test.txt", "test\n"+testString+"\nhello\nworld\n")
 	tail := t.StartTail("test.txt", Config{Follow: true, Location: nil, MaxLineSize: 4097})
 	go t.VerifyTailOutput(tail, []string{"test", testString, "hello", "world"})
 
@@ -93,7 +93,7 @@ func TestOver4096ByteLineWithSetMaxLineSize(_t *testing.T) {
 	// to read all lines.
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
-	tail.Stop()
+	// tail.Stop()
 	Cleanup()
 }
 
@@ -415,7 +415,9 @@ func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
 		// Note: not checking .Err as the `lines` argument is designed
 		// to match error strings as well.
 		if tailedLine.Text != line {
-			t.Fatalf("unexpected line/err from tail: expecting ```%s```, but got ```%s```",
+			t.Fatalf(
+				"unexpected line/err from tail: "+
+					"expecting <<%s>>>, but got <<<%s>>>",
 				line, tailedLine.Text)
 		}
 	}

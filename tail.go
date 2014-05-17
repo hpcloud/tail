@@ -13,6 +13,7 @@ import (
 	"launchpad.net/tomb"
 	"log"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -167,26 +168,18 @@ func (tail *Tail) reopen() error {
 	return nil
 }
 
-func (tail *Tail) readLine() ([]byte, error) {
-	line, isPrefix, err := tail.reader.ReadLine()
+func (tail *Tail) readLine() (string, error) {
+	line, err := tail.reader.ReadString('\n')
 	if err != nil {
+		// Note ReadString "returns the data read before the error" in
+		// case of an error, including EOF, so we return it as is. The
+		// caller is expected to process it if err is EOF.
 		return line, err
 	}
 
-	// If MaxLineSize is set, we don't have to join the parts (let
-	// Go's reader split them).
-	if !isPrefix || tail.MaxLineSize > 0 {
-		return line, err
-	}
+	line = strings.TrimRight(line, "\n")
 
-	// Join lines from next read "if the line was too long for the
-	// buffer". XXX: why not use ReadBytes('\n') or Scanner?
-	buf := append([]byte(nil), line...)
-	for isPrefix && err == nil {
-		line, isPrefix, err = tail.reader.ReadLine()
-		buf = append(buf, line...)
-	}
-	return buf, err
+	return line, err
 }
 
 func (tail *Tail) tailFileSync() {
@@ -222,7 +215,7 @@ func (tail *Tail) tailFileSync() {
 
 		switch err {
 		case nil:
-			if line != nil {
+			if true {
 				cooloff := !tail.sendLine(line)
 				if cooloff {
 					// Wait a second before seeking till the end of
@@ -337,14 +330,13 @@ func (tail *Tail) seekEnd() error {
 
 // sendLine sends the line(s) to Lines channel, splitting longer lines
 // if necessary. Return false if rate limit is reached.
-func (tail *Tail) sendLine(line []byte) bool {
+func (tail *Tail) sendLine(line string) bool {
 	now := time.Now()
-	lines := []string{string(line)}
+	lines := []string{line}
 
 	// Split longer lines
 	if tail.MaxLineSize > 0 && len(line) > tail.MaxLineSize {
-		lines = util.PartitionString(
-			string(line), tail.MaxLineSize)
+		lines = util.PartitionString(line, tail.MaxLineSize)
 	}
 
 	for _, line := range lines {
