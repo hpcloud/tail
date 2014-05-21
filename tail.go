@@ -13,6 +13,7 @@ import (
 	"launchpad.net/tomb"
 	"log"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -167,18 +168,18 @@ func (tail *Tail) reopen() error {
 	return nil
 }
 
-func (tail *Tail) readLine() ([]byte, error) {
-	line, isPrefix, err := tail.reader.ReadLine()
-	if !isPrefix || tail.MaxLineSize > 0 {
+func (tail *Tail) readLine() (string, error) {
+	line, err := tail.reader.ReadString('\n')
+	if err != nil {
+		// Note ReadString "returns the data read before the error" in
+		// case of an error, including EOF, so we return it as is. The
+		// caller is expected to process it if err is EOF.
 		return line, err
 	}
 
-	buf := append([]byte(nil), line...)
-	for isPrefix && err == nil {
-		line, isPrefix, err = tail.reader.ReadLine()
-		buf = append(buf, line...)
-	}
-	return buf, err
+	line = strings.TrimRight(line, "\n")
+
+	return line, err
 }
 
 func (tail *Tail) tailFileSync() {
@@ -206,36 +207,34 @@ func (tail *Tail) tailFileSync() {
 		}
 	}
 
-	tail.reader = tail.newReader()
+	tail.openReader()
 
 	// Read line by line.
 	for {
 		line, err := tail.readLine()
 
-		switch err {
-		case nil:
-			if line != nil {
-				cooloff := !tail.sendLine(line)
-				if cooloff {
-					// Wait a second before seeking till the end of
-					// file when rate limit is reached.
-					msg := fmt.Sprintf(
-						"Too much log activity; waiting a second " +
-							"before resuming tailing")
-					tail.Lines <- &Line{msg, time.Now(), fmt.Errorf(msg)}
-					select {
-					case <-time.After(time.Second):
-					case <-tail.Dying():
-						return
-					}
-					err = tail.seekEnd()
-					if err != nil {
-						tail.Kill(err)
-						return
-					}
+		// Process `line` even if err is EOF.
+		if err == nil || (err == io.EOF && line != "") {
+			cooloff := !tail.sendLine(line)
+			if cooloff {
+				// Wait a second before seeking till the end of
+				// file when rate limit is reached.
+				msg := fmt.Sprintf(
+					"Too much log activity; waiting a second " +
+						"before resuming tailing")
+				tail.Lines <- &Line{msg, time.Now(), fmt.Errorf(msg)}
+				select {
+				case <-time.After(time.Second):
+				case <-tail.Dying():
+					return
+				}
+				err = tail.seekEnd()
+				if err != nil {
+					tail.Kill(err)
+					return
 				}
 			}
-		case io.EOF:
+		} else if err == io.EOF {
 			if !tail.Follow {
 				return
 			}
@@ -249,7 +248,8 @@ func (tail *Tail) tailFileSync() {
 				}
 				return
 			}
-		default: // non-EOF error
+		} else {
+			// non-EOF error
 			tail.Killf("Error reading %s: %s", tail.Filename, err)
 			return
 		}
@@ -286,7 +286,7 @@ func (tail *Tail) waitForChanges() error {
 				return err
 			}
 			tail.Logger.Printf("Successfully reopened %s", tail.Filename)
-			tail.reader = tail.newReader()
+			tail.openReader()
 			return nil
 		} else {
 			tail.Logger.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
@@ -299,7 +299,7 @@ func (tail *Tail) waitForChanges() error {
 			return err
 		}
 		tail.Logger.Printf("Successfully reopened truncated %s", tail.Filename)
-		tail.reader = tail.newReader()
+		tail.openReader()
 		return nil
 	case <-tail.Dying():
 		return ErrStop
@@ -307,12 +307,12 @@ func (tail *Tail) waitForChanges() error {
 	panic("unreachable")
 }
 
-func (tail *Tail) newReader() *bufio.Reader {
+func (tail *Tail) openReader() {
 	if tail.MaxLineSize > 0 {
 		// add 2 to account for newline characters
-		return bufio.NewReaderSize(tail.file, tail.MaxLineSize+2)
+		tail.reader = bufio.NewReaderSize(tail.file, tail.MaxLineSize+2)
 	} else {
-		return bufio.NewReader(tail.file)
+		tail.reader = bufio.NewReader(tail.file)
 	}
 }
 
@@ -328,14 +328,13 @@ func (tail *Tail) seekEnd() error {
 
 // sendLine sends the line(s) to Lines channel, splitting longer lines
 // if necessary. Return false if rate limit is reached.
-func (tail *Tail) sendLine(line []byte) bool {
+func (tail *Tail) sendLine(line string) bool {
 	now := time.Now()
-	lines := []string{string(line)}
+	lines := []string{line}
 
 	// Split longer lines
 	if tail.MaxLineSize > 0 && len(line) > tail.MaxLineSize {
-		lines = util.PartitionString(
-			string(line), tail.MaxLineSize)
+		lines = util.PartitionString(line, tail.MaxLineSize)
 	}
 
 	for _, line := range lines {
