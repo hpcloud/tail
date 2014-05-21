@@ -1,6 +1,7 @@
 # May, 2014
 
 * Improved rate limiting using leaky bucket (PR #29)
+* Fix odd line splitting (PR #30)
 
 # Apr, 2014
 
