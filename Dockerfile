@@ -1,12 +1,9 @@
-# -*- sh -*-
-
-FROM ubuntu:13.10
-
-RUN echo "deb http://archive.ubuntu.com/ubuntu quantal main universe" >> /etc/apt/sources.list
+FROM ubuntu
 
 RUN apt-get -qy update
-RUN apt-get -qy install golang-go
-RUN apt-get -qy install git mercurial bzr subversion
+RUN apt-get -y install golang-go
+RUN apt-get -y install git 
+RUN apt-get -y install mercurial subversion
 
 ENV GOPATH $HOME/go
 

@@ -3,7 +3,7 @@
 package watch
 
 import (
-	"launchpad.net/tomb"
+	"gopkg.in/tomb.v1"
 	"os"
 )
 

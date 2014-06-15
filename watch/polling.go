@@ -4,7 +4,7 @@ package watch
 
 import (
 	"github.com/ActiveState/tail/util"
-	"launchpad.net/tomb"
+	"gopkg.in/tomb.v1"
 	"os"
 	"time"
 )
