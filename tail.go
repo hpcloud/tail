@@ -104,7 +104,7 @@ func TailFile(filename string, config Config) (*Tail, error) {
 
 	if t.MustExist {
 		var err error
-		t.file, err = os.Open(t.Filename)
+		t.file, err = OpenFile(t.Filename)
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +149,7 @@ func (tail *Tail) reopen() error {
 	}
 	for {
 		var err error
-		tail.file, err = os.Open(tail.Filename)
+		tail.file, err = OpenFile(tail.Filename)
 		if err != nil {
 			if os.IsNotExist(err) {
 				tail.Logger.Printf("Waiting for %s to appear...", tail.Filename)
