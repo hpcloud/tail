@@ -211,10 +211,17 @@ func (tail *Tail) tailFileSync() {
 
 	// Read line by line.
 	for {
+		// grab the position in case we need to back up in the event of a half-line
+		offset, err := tail.Tell()
+		if err != nil {
+			tail.Kill(err)
+			return
+		}
+
 		line, err := tail.readLine()
 
 		// Process `line` even if err is EOF.
-		if err == nil || (err == io.EOF && line != "") {
+		if err == nil {
 			cooloff := !tail.sendLine(line)
 			if cooloff {
 				// Wait a second before seeking till the end of
@@ -236,8 +243,22 @@ func (tail *Tail) tailFileSync() {
 			}
 		} else if err == io.EOF {
 			if !tail.Follow {
+				if line != "" {
+					tail.sendLine(line)
+				}
 				return
 			}
+
+			if tail.Follow && line != "" {
+				// this has the potential to never return the last line if
+				// it's not followed by a newline; seems a fair trade here
+				err := tail.seekTo(SeekInfo{Offset: offset, Whence: 0})
+				if err != nil {
+					tail.Kill(err)
+					return
+				}
+			}
+
 			// When EOF is reached, wait for more data to become
 			// available. Wait strategy is based on the `tail.watcher`
 			// implementation (inotify or polling).
@@ -317,7 +338,11 @@ func (tail *Tail) openReader() {
 }
 
 func (tail *Tail) seekEnd() error {
-	_, err := tail.file.Seek(0, 2)
+	return tail.seekTo(SeekInfo{Offset: 0, Whence: 2})
+}
+
+func (tail *Tail) seekTo(pos SeekInfo) error {
+	_, err := tail.file.Seek(pos.Offset, pos.Whence)
 	if err != nil {
 		return fmt.Errorf("Seek error on %s: %s", tail.Filename, err)
 	}
