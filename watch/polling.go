@@ -51,6 +51,8 @@ func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, origFi os.FileInfo) *Fi
 	go func() {
 		defer changes.Close()
 
+		var retry int = 0
+
 		prevSize := fw.Size
 		for {
 			select {
@@ -67,6 +69,11 @@ func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, origFi os.FileInfo) *Fi
 					changes.NotifyDeleted()
 					return
 				}
+
+				if permissionErrorRetry(err, &retry) {
+					continue
+				}
+
 				// XXX: report this error back to the user
 				util.Fatal("Failed to stat file %v: %v", fw.Filename, err)
 			}
