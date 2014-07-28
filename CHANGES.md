@@ -1,3 +1,7 @@
+# July, 2014
+
+* Fix tail for Windows (PR #36)
+
 # May, 2014
 
 * Improved rate limiting using leaky bucket (PR #29)
