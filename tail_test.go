@@ -54,6 +54,25 @@ func TestStop(t *testing.T) {
 	Cleanup()
 }
 
+func TestStopAtEOF(_t *testing.T) {
+	t := NewTailTest("maxlinesize", _t)
+	t.CreateFile("test.txt", "hello\nthere\nworld\n")
+	tail := t.StartTail("test.txt", Config{Follow: true, Location: nil})
+
+	// read "hello"
+	<-tail.Lines
+
+	done := make(chan struct{})
+	go func() {
+		<-time.After(100 * time.Millisecond)
+		t.VerifyTailOutput(tail, []string{"there", "world"})
+		close(done)
+	}()
+	tail.StopAtEOF()
+	<-done
+	Cleanup()
+}
+
 func TestMaxLineSize(_t *testing.T) {
 	t := NewTailTest("maxlinesize", _t)
 	t.CreateFile("test.txt", "hello\nworld\nfin\nhe")
