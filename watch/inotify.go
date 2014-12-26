@@ -77,7 +77,6 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 
 	go func() {
 		defer inotifyTracker.CloseWatcher(w)
-		defer changes.Close()
 
 		for {
 			prevSize := fw.Size

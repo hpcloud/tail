@@ -49,8 +49,6 @@ func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, origFi os.FileInfo) *Fi
 	fw.Size = origFi.Size()
 
 	go func() {
-		defer changes.Close()
-
 		var retry int = 0
 
 		prevSize := fw.Size
