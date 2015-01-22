@@ -7,6 +7,7 @@ package tail
 
 import (
 	"./watch"
+	"bytes"
 	_ "fmt"
 	"github.com/ActiveState/tail/ratelimiter"
 	"io/ioutil"
@@ -318,6 +319,31 @@ func TestTell(_t *testing.T) {
 	}
 	t.RemoveFile("test.txt")
 	tail.Done()
+	Cleanup()
+}
+
+type BytesReaderCloser struct {
+	*bytes.Reader
+}
+
+func (BytesReaderCloser) Close() error {
+	return nil
+}
+
+func TestReader(_t *testing.T) {
+	t := NewTailTest("reader", _t)
+	r := BytesReaderCloser{bytes.NewReader([]byte("hello\nworld\n"))}
+	config := Config{
+		Follow: false,
+		Location: nil}
+	tail, err := TailReader(r, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go t.VerifyTailOutput(tail, []string{
+		"hello", "world"})
+	<-time.After(100 * time.Millisecond)
+	tail.Stop()
 	Cleanup()
 }
 

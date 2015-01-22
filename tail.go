@@ -61,7 +61,7 @@ type Tail struct {
 	Lines    chan *Line
 	Config
 
-	file    *os.File
+	file    io.ReadCloser
 	reader  *bufio.Reader
 	watcher watch.FileWatcher
 	changes *watch.FileChanges
@@ -115,6 +115,33 @@ func TailFile(filename string, config Config) (*Tail, error) {
 	return t, nil
 }
 
+func TailReader(reader io.ReadCloser, config Config) (*Tail, error) {
+	if config.ReOpen || config.MustExist || config.Poll {
+		util.Fatal("Unsupported option")
+	}
+	switch reader.(type) {
+	case io.Seeker:
+	default:
+		util.Fatal("reader must implement io.Seeker")
+	}
+
+	t := &Tail{
+		Filename: "<reader>",
+		Lines:    make(chan *Line),
+		Config:   config,
+		file:     reader,
+	}
+
+	// when Logger was not specified in config, use default logger
+	if t.Logger == nil {
+		t.Logger = log.New(os.Stderr, "", log.LstdFlags)
+	}
+
+	go t.tailReaderSync()
+
+	return t, nil
+}
+
 // Return the file's current position, like stdio's ftell().
 // But this value is not very accurate.
 // it may readed one line in the chan(tail.Lines),
@@ -123,7 +150,7 @@ func (tail *Tail) Tell() (offset int64, err error) {
 	if tail.file == nil {
 		return
 	}
-	offset, err = tail.file.Seek(0, os.SEEK_CUR)
+	offset, err = tail.file.(io.Seeker).Seek(0, os.SEEK_CUR)
 	if err == nil {
 		offset -= int64(tail.reader.Buffered())
 	}
@@ -183,9 +210,6 @@ func (tail *Tail) readLine() (string, error) {
 }
 
 func (tail *Tail) tailFileSync() {
-	defer tail.Done()
-	defer tail.close()
-
 	if !tail.MustExist {
 		// deferred first open.
 		err := tail.reopen()
@@ -193,13 +217,22 @@ func (tail *Tail) tailFileSync() {
 			if err != tomb.ErrDying {
 				tail.Kill(err)
 			}
+			tail.close()
+			tail.Done()
 			return
 		}
 	}
 
+	tail.tailReaderSync()
+}
+
+func (tail *Tail) tailReaderSync() {
+	defer tail.Done()
+	defer tail.close()
+
 	// Seek to requested location on first open of the file.
 	if tail.Location != nil {
-		_, err := tail.file.Seek(tail.Location.Offset, tail.Location.Whence)
+		_, err := tail.file.(io.Seeker).Seek(tail.Location.Offset, tail.Location.Whence)
 		tail.Logger.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
 		if err != nil {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
@@ -238,15 +271,18 @@ func (tail *Tail) tailFileSync() {
 			if !tail.Follow {
 				return
 			}
-			// When EOF is reached, wait for more data to become
-			// available. Wait strategy is based on the `tail.watcher`
-			// implementation (inotify or polling).
-			err := tail.waitForChanges()
-			if err != nil {
-				if err != ErrStop {
-					tail.Kill(err)
+			switch tail.file.(type) {
+			case *os.File:
+				// When EOF is reached, wait for more data to become
+				// available. Wait strategy is based on the `tail.watcher`
+				// implementation (inotify or polling).
+				err := tail.waitForChanges()
+				if err != nil {
+					if err != ErrStop {
+						tail.Kill(err)
+					}
+					return
 				}
-				return
 			}
 		} else {
 			// non-EOF error
@@ -267,7 +303,7 @@ func (tail *Tail) tailFileSync() {
 // reopened if ReOpen is true. Truncated files are always reopened.
 func (tail *Tail) waitForChanges() error {
 	if tail.changes == nil {
-		st, err := tail.file.Stat()
+		st, err := tail.file.(*os.File).Stat()
 		if err != nil {
 			return err
 		}
@@ -317,7 +353,7 @@ func (tail *Tail) openReader() {
 }
 
 func (tail *Tail) seekEnd() error {
-	_, err := tail.file.Seek(0, 2)
+	_, err := tail.file.(io.Seeker).Seek(0, 2)
 	if err != nil {
 		return fmt.Errorf("Seek error on %s: %s", tail.Filename, err)
 	}
