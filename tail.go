@@ -5,16 +5,17 @@ package tail
 import (
 	"bufio"
 	"fmt"
-	"github.com/ActiveState/tail/ratelimiter"
-	"github.com/ActiveState/tail/util"
-	"github.com/ActiveState/tail/watch"
-	"gopkg.in/tomb.v1"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/ActiveState/tail/ratelimiter"
+	"github.com/ActiveState/tail/util"
+	"github.com/ActiveState/tail/watch"
+	"gopkg.in/tomb.v1"
 )
 
 var (
@@ -93,7 +94,7 @@ func TailFile(filename string, config Config) (*Tail, error) {
 
 	// when Logger was not specified in config, use default logger
 	if t.Logger == nil {
-		t.Logger = log.New(os.Stderr, "", log.LstdFlags)
+		t.Logger = DefaultLogger
 	}
 
 	if t.Poll {
