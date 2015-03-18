@@ -119,9 +119,7 @@ func TailReader(reader io.ReadCloser, config Config) (*Tail, error) {
 	if config.ReOpen || config.MustExist || config.Poll {
 		util.Fatal("Unsupported option")
 	}
-	switch reader.(type) {
-	case io.Seeker:
-	default:
+	if _, ok := reader.(io.Seeker); !ok {
 		util.Fatal("reader must implement io.Seeker")
 	}
 
