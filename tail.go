@@ -21,6 +21,11 @@ var (
 	ErrStop = fmt.Errorf("tail should now stop")
 )
 
+type ReadCloserSeeker interface {
+	io.ReadCloser
+	io.Seeker
+}
+
 type Line struct {
 	Text string
 	Time time.Time
@@ -61,7 +66,7 @@ type Tail struct {
 	Lines    chan *Line
 	Config
 
-	file    io.ReadCloser
+	file    ReadCloserSeeker
 	reader  *bufio.Reader
 	watcher watch.FileWatcher
 	changes *watch.FileChanges
@@ -115,7 +120,7 @@ func TailFile(filename string, config Config) (*Tail, error) {
 	return t, nil
 }
 
-func TailReader(reader io.ReadCloser, config Config) (*Tail, error) {
+func TailReader(reader ReadCloserSeeker, config Config) (*Tail, error) {
 	if config.ReOpen || config.MustExist || config.Poll {
 		util.Fatal("Unsupported option")
 	}
@@ -148,7 +153,7 @@ func (tail *Tail) Tell() (offset int64, err error) {
 	if tail.file == nil {
 		return
 	}
-	offset, err = tail.file.(io.Seeker).Seek(0, os.SEEK_CUR)
+	offset, err = tail.file.Seek(0, os.SEEK_CUR)
 	if err == nil {
 		offset -= int64(tail.reader.Buffered())
 	}
@@ -230,7 +235,7 @@ func (tail *Tail) tailReaderSync() {
 
 	// Seek to requested location on first open of the file.
 	if tail.Location != nil {
-		_, err := tail.file.(io.Seeker).Seek(tail.Location.Offset, tail.Location.Whence)
+		_, err := tail.file.Seek(tail.Location.Offset, tail.Location.Whence)
 		tail.Logger.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
 		if err != nil {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
@@ -269,8 +274,7 @@ func (tail *Tail) tailReaderSync() {
 			if !tail.Follow {
 				return
 			}
-			switch tail.file.(type) {
-			case *os.File:
+			if _, ok := tail.file.(*os.File); ok {
 				// When EOF is reached, wait for more data to become
 				// available. Wait strategy is based on the `tail.watcher`
 				// implementation (inotify or polling).
@@ -351,7 +355,7 @@ func (tail *Tail) openReader() {
 }
 
 func (tail *Tail) seekEnd() error {
-	_, err := tail.file.(io.Seeker).Seek(0, 2)
+	_, err := tail.file.Seek(0, 2)
 	if err != nil {
 		return fmt.Errorf("Seek error on %s: %s", tail.Filename, err)
 	}
