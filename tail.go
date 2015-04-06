@@ -21,6 +21,11 @@ var (
 	ErrStop = fmt.Errorf("tail should now stop")
 )
 
+type ReadCloserSeeker interface {
+	io.ReadCloser
+	io.Seeker
+}
+
 type Line struct {
 	Text string
 	Time time.Time
@@ -61,7 +66,7 @@ type Tail struct {
 	Lines    chan *Line
 	Config
 
-	file    *os.File
+	file    ReadCloserSeeker
 	reader  *bufio.Reader
 	watcher watch.FileWatcher
 	changes *watch.FileChanges
@@ -111,6 +116,31 @@ func TailFile(filename string, config Config) (*Tail, error) {
 	}
 
 	go t.tailFileSync()
+
+	return t, nil
+}
+
+func TailReader(reader ReadCloserSeeker, config Config) (*Tail, error) {
+	if config.ReOpen || config.MustExist || config.Poll {
+		util.Fatal("Unsupported option")
+	}
+	if _, ok := reader.(io.Seeker); !ok {
+		util.Fatal("reader must implement io.Seeker")
+	}
+
+	t := &Tail{
+		Filename: "<reader>",
+		Lines:    make(chan *Line),
+		Config:   config,
+		file:     reader,
+	}
+
+	// when Logger was not specified in config, use default logger
+	if t.Logger == nil {
+		t.Logger = log.New(os.Stderr, "", log.LstdFlags)
+	}
+
+	go t.tailReaderSync()
 
 	return t, nil
 }
@@ -183,9 +213,6 @@ func (tail *Tail) readLine() (string, error) {
 }
 
 func (tail *Tail) tailFileSync() {
-	defer tail.Done()
-	defer tail.close()
-
 	if !tail.MustExist {
 		// deferred first open.
 		err := tail.reopen()
@@ -193,9 +220,18 @@ func (tail *Tail) tailFileSync() {
 			if err != tomb.ErrDying {
 				tail.Kill(err)
 			}
+			tail.close()
+			tail.Done()
 			return
 		}
 	}
+
+	tail.tailReaderSync()
+}
+
+func (tail *Tail) tailReaderSync() {
+	defer tail.Done()
+	defer tail.close()
 
 	// Seek to requested location on first open of the file.
 	if tail.Location != nil {
@@ -238,15 +274,17 @@ func (tail *Tail) tailFileSync() {
 			if !tail.Follow {
 				return
 			}
-			// When EOF is reached, wait for more data to become
-			// available. Wait strategy is based on the `tail.watcher`
-			// implementation (inotify or polling).
-			err := tail.waitForChanges()
-			if err != nil {
-				if err != ErrStop {
-					tail.Kill(err)
+			if _, ok := tail.file.(*os.File); ok {
+				// When EOF is reached, wait for more data to become
+				// available. Wait strategy is based on the `tail.watcher`
+				// implementation (inotify or polling).
+				err := tail.waitForChanges()
+				if err != nil {
+					if err != ErrStop {
+						tail.Kill(err)
+					}
+					return
 				}
-				return
 			}
 		} else {
 			// non-EOF error
@@ -267,7 +305,7 @@ func (tail *Tail) tailFileSync() {
 // reopened if ReOpen is true. Truncated files are always reopened.
 func (tail *Tail) waitForChanges() error {
 	if tail.changes == nil {
-		st, err := tail.file.Stat()
+		st, err := tail.file.(*os.File).Stat()
 		if err != nil {
 			return err
 		}
