@@ -54,11 +54,11 @@ func TestStop(t *testing.T) {
 	Cleanup()
 }
 
-func TestMaxLineSize(_t *testing.T) {
+func MaxLineSizeT(_t *testing.T, follow bool, fileContent string, expected []string) {
 	t := NewTailTest("maxlinesize", _t)
-	t.CreateFile("test.txt", "hello\nworld\nfin\nhe")
-	tail := t.StartTail("test.txt", Config{Follow: true, Location: nil, MaxLineSize: 3})
-	go t.VerifyTailOutput(tail, []string{"hel", "lo", "wor", "ld", "fin", "he"})
+	t.CreateFile("test.txt", fileContent)
+	tail := t.StartTail("test.txt", Config{Follow: follow, Location: nil, MaxLineSize: 3})
+	go t.VerifyTailOutput(tail, expected)
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
@@ -66,6 +66,15 @@ func TestMaxLineSize(_t *testing.T) {
 	t.RemoveFile("test.txt")
 	tail.Stop()
 	Cleanup()
+}
+
+func TestMaxLineSizeFollow(_t *testing.T) {
+	// As last file line does not end with newline, it will not be present in tail's output
+	MaxLineSizeT(_t, true, "hello\nworld\nfin\nhe", []string{"hel", "lo", "wor", "ld", "fin"})
+}
+
+func TestMaxLineSizeNoFollow(_t *testing.T) {
+	MaxLineSizeT(_t, false, "hello\nworld\nfin\nhe", []string{"hel", "lo", "wor", "ld", "fin", "he"})
 }
 
 func TestOver4096ByteLine(_t *testing.T) {
