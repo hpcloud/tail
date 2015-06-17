@@ -1,3 +1,7 @@
+# June, 2015
+
+* Don't return partial lines (PR #40)
+
 # July, 2014
 
 * Fix tail for Windows (PR #36)
