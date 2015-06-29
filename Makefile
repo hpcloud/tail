@@ -8,4 +8,4 @@ fmt:
 
 # Run the test in an isolated environment.
 fulltest:
-	docker build -t ActiveState/tail .
+	docker build -t activestate/tail .
