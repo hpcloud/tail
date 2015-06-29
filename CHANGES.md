@@ -1,6 +1,7 @@
 # June, 2015
 
 * Don't return partial lines (PR #40)
+* Use stable version of fsnotify (#46)
 
 # July, 2014
 

@@ -3,7 +3,7 @@
 package watch
 
 import (
-	"github.com/howeyc/fsnotify"
+	"gopkg.in/fsnotify.v0"
 	"log"
 	"sync"
 )
