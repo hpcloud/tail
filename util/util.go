@@ -24,7 +24,7 @@ func Fatal(format string, v ...interface{}) {
 
 // partitionString partitions the string into chunks of given size,
 // with the last chunk of variable size.
-func PartitionString(s string, chunkSize int) []string {
+func PartitionString(s []byte, chunkSize int) [][]byte {
 	if chunkSize <= 0 {
 		panic("invalid chunkSize")
 	}
@@ -32,7 +32,7 @@ func PartitionString(s string, chunkSize int) []string {
 	chunks := 1 + length/chunkSize
 	start := 0
 	end := chunkSize
-	parts := make([]string, 0, chunks)
+	parts := make([][]byte, 0, chunks)
 	for {
 		if end > length {
 			end = length
