@@ -46,6 +46,7 @@ type Config struct {
 	ReOpen      bool      // Reopen recreated files (tail -F)
 	MustExist   bool      // Fail early if the file does not exist
 	Poll        bool      // Poll for file changes instead of using inotify
+	OpenNotify  bool      // Notify of Open file
 	RateLimiter *ratelimiter.LeakyBucket
 
 	// Generic IO
@@ -60,6 +61,7 @@ type Config struct {
 type Tail struct {
 	Filename string
 	Lines    chan *Line
+	OpenTime chan time.Time
 	Config
 
 	file    *os.File
@@ -91,6 +93,7 @@ func TailFile(filename string, config Config) (*Tail, error) {
 	t := &Tail{
 		Filename: filename,
 		Lines:    make(chan *Line),
+		OpenTime: make(chan time.Time, 1),
 		Config:   config,
 	}
 
@@ -342,6 +345,9 @@ func (tail *Tail) openReader() {
 		tail.reader = bufio.NewReaderSize(tail.file, tail.MaxLineSize+2)
 	} else {
 		tail.reader = bufio.NewReader(tail.file)
+	}
+	if tail.OpenNotify {
+		tail.OpenTime <- time.Now()
 	}
 }
 
