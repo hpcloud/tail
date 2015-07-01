@@ -4,11 +4,12 @@ package watch
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/ActiveState/tail/util"
 	"gopkg.in/fsnotify.v0"
 	"gopkg.in/tomb.v1"
-	"os"
-	"path/filepath"
 )
 
 var inotifyTracker *InotifyTracker
@@ -17,27 +18,23 @@ var inotifyTracker *InotifyTracker
 type InotifyFileWatcher struct {
 	Filename string
 	Size     int64
+	w        *fsnotify.Watcher
 }
 
-func NewInotifyFileWatcher(filename string) *InotifyFileWatcher {
-	fw := &InotifyFileWatcher{filename, 0}
+func NewInotifyFileWatcher(filename string, w *fsnotify.Watcher) *InotifyFileWatcher {
+	fw := &InotifyFileWatcher{filename, 0, w}
 	return fw
 }
 
 func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
-	w, err := inotifyTracker.NewWatcher()
-	if err != nil {
-		return err
-	}
-	defer inotifyTracker.CloseWatcher(w)
-
 	dirname := filepath.Dir(fw.Filename)
 
 	// Watch for new files to be created in the parent directory.
-	err = w.WatchFlags(dirname, fsnotify.FSN_CREATE)
+	err := fw.w.WatchFlags(dirname, fsnotify.FSN_CREATE)
 	if err != nil {
 		return err
 	}
+	defer fw.w.RemoveWatch(dirname)
 
 	// Do a real check now as the file might have been created before
 	// calling `WatchFlags` above.
@@ -48,7 +45,7 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 
 	for {
 		select {
-		case evt, ok := <-w.Event:
+		case evt, ok := <-fw.w.Event:
 			if !ok {
 				return fmt.Errorf("inotify watcher has been closed")
 			} else if evt.Name == fw.Filename {
@@ -64,11 +61,7 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileChanges {
 	changes := NewFileChanges()
 
-	w, err := inotifyTracker.NewWatcher()
-	if err != nil {
-		util.Fatal("Error creating fsnotify watcher: %v", err)
-	}
-	err = w.Watch(fw.Filename)
+	err := fw.w.Watch(fw.Filename)
 	if err != nil {
 		util.Fatal("Error watching %v: %v", fw.Filename, err)
 	}
@@ -76,7 +69,7 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 	fw.Size = fi.Size()
 
 	go func() {
-		defer inotifyTracker.CloseWatcher(w)
+		defer fw.w.RemoveWatch(fw.Filename)
 		defer changes.Close()
 
 		for {
@@ -86,7 +79,7 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 			var ok bool
 
 			select {
-			case evt, ok = <-w.Event:
+			case evt, ok = <-fw.w.Event:
 				if !ok {
 					return
 				}
@@ -125,12 +118,4 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 	}()
 
 	return changes
-}
-
-func Cleanup() {
-	inotifyTracker.CloseAll()
-}
-
-func init() {
-	inotifyTracker = NewInotifyTracker()
 }
