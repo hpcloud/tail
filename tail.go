@@ -5,16 +5,17 @@ package tail
 import (
 	"bufio"
 	"fmt"
-	"github.com/ActiveState/tail/ratelimiter"
-	"github.com/ActiveState/tail/util"
-	"github.com/ActiveState/tail/watch"
-	"gopkg.in/tomb.v1"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/ActiveState/tail/ratelimiter"
+	"github.com/ActiveState/tail/util"
+	"github.com/ActiveState/tail/watch"
+	"gopkg.in/tomb.v1"
 )
 
 var (
