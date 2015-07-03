@@ -12,8 +12,6 @@ import (
 	"gopkg.in/tomb.v1"
 )
 
-var inotifyTracker *InotifyTracker
-
 // InotifyFileWatcher uses inotify to monitor file changes.
 type InotifyFileWatcher struct {
 	Filename string
