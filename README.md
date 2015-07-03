@@ -22,3 +22,6 @@ designed to work with log rotation tools.
 
     go get github.com/ActiveState/tail/...
 
+## Windows support
+
+This package [needs assistance](https://github.com/ActiveState/tail/labels/Windows) for full Windows support.
