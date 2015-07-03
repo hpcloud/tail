@@ -8,3 +8,6 @@ script:
 
 go:
   - 1.2.1
+
+install:
+  - go get gopkg.in/fsnotify.v0
