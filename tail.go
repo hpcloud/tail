@@ -5,16 +5,17 @@ package tail
 import (
 	"bufio"
 	"fmt"
-	"github.com/ActiveState/tail/ratelimiter"
-	"github.com/ActiveState/tail/util"
-	"github.com/ActiveState/tail/watch"
-	"gopkg.in/tomb.v1"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/ActiveState/tail/ratelimiter"
+	"github.com/ActiveState/tail/util"
+	"github.com/ActiveState/tail/watch"
+	"gopkg.in/tomb.v1"
 )
 
 var (
@@ -63,6 +64,8 @@ type Tail struct {
 
 	file    *os.File
 	reader  *bufio.Reader
+	tracker *watch.InotifyTracker
+
 	watcher watch.FileWatcher
 	changes *watch.FileChanges
 
@@ -99,7 +102,12 @@ func TailFile(filename string, config Config) (*Tail, error) {
 	if t.Poll {
 		t.watcher = watch.NewPollingFileWatcher(filename)
 	} else {
-		t.watcher = watch.NewInotifyFileWatcher(filename)
+		t.tracker = watch.NewInotifyTracker()
+		w, err := t.tracker.NewWatcher()
+		if err != nil {
+			return nil, err
+		}
+		t.watcher = watch.NewInotifyFileWatcher(filename, w)
 	}
 
 	if t.MustExist {
@@ -381,6 +389,8 @@ func (tail *Tail) sendLine(line string) bool {
 // Cleanup removes inotify watches added by the tail package. This function is
 // meant to be invoked from a process's exit handler. Linux kernel may not
 // automatically remove inotify watches after the process exits.
-func Cleanup() {
-	watch.Cleanup()
+func (tail *Tail) Cleanup() {
+	if tail.tracker != nil {
+		tail.tracker.CloseAll()
+	}
 }

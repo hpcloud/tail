@@ -6,14 +6,15 @@
 package tail
 
 import (
-	"./watch"
 	_ "fmt"
-	"github.com/ActiveState/tail/ratelimiter"
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"./watch"
+	"github.com/ActiveState/tail/ratelimiter"
 )
 
 func init() {
@@ -40,7 +41,7 @@ func TestMustExist(t *testing.T) {
 		t.Error("MustExist:true on an existing file is violated")
 	}
 	tail.Stop()
-	Cleanup()
+	tail.Cleanup()
 }
 
 func TestStop(t *testing.T) {
@@ -51,7 +52,7 @@ func TestStop(t *testing.T) {
 	if tail.Stop() != nil {
 		t.Error("Should be stoped successfully")
 	}
-	Cleanup()
+	tail.Cleanup()
 }
 
 func MaxLineSizeT(_t *testing.T, follow bool, fileContent string, expected []string) {
@@ -65,7 +66,7 @@ func MaxLineSizeT(_t *testing.T, follow bool, fileContent string, expected []str
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 	tail.Stop()
-	Cleanup()
+	tail.Cleanup()
 }
 
 func TestMaxLineSizeFollow(_t *testing.T) {
@@ -89,7 +90,7 @@ func TestOver4096ByteLine(_t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 	tail.Stop()
-	Cleanup()
+	tail.Cleanup()
 }
 func TestOver4096ByteLineWithSetMaxLineSize(_t *testing.T) {
 	t := NewTailTest("Over4096ByteLineMaxLineSize", _t)
@@ -103,7 +104,7 @@ func TestOver4096ByteLineWithSetMaxLineSize(_t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 	// tail.Stop()
-	Cleanup()
+	tail.Cleanup()
 }
 
 func TestLocationFull(_t *testing.T) {
@@ -117,7 +118,7 @@ func TestLocationFull(_t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 	tail.Stop()
-	Cleanup()
+	tail.Cleanup()
 }
 
 func TestLocationFullDontFollow(_t *testing.T) {
@@ -132,7 +133,7 @@ func TestLocationFullDontFollow(_t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 
 	tail.Stop()
-	Cleanup()
+	tail.Cleanup()
 }
 
 func TestLocationEnd(_t *testing.T) {
@@ -149,7 +150,7 @@ func TestLocationEnd(_t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 	tail.Stop()
-	Cleanup()
+	tail.Cleanup()
 }
 
 func TestLocationMiddle(_t *testing.T) {
@@ -167,7 +168,7 @@ func TestLocationMiddle(_t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	t.RemoveFile("test.txt")
 	tail.Stop()
-	Cleanup()
+	tail.Cleanup()
 }
 
 func _TestReOpen(_t *testing.T, poll bool) {
@@ -210,7 +211,7 @@ func _TestReOpen(_t *testing.T, poll bool) {
 	// the reading of data written above. Timings can vary based on
 	// test environment.
 	// tail.Stop()
-	Cleanup()
+	tail.Cleanup()
 }
 
 // The use of polling file watcher could affect file rotation
@@ -253,7 +254,7 @@ func _TestReSeek(_t *testing.T, poll bool) {
 	// the reading of data written above. Timings can vary based on
 	// test environment.
 	// tail.Stop()
-	Cleanup()
+	tail.Cleanup()
 }
 
 // The use of polling file watcher could affect file rotation
@@ -293,7 +294,7 @@ func TestRateLimiting(_t *testing.T) {
 	t.RemoveFile("test.txt")
 
 	// tail.Stop()
-	Cleanup()
+	tail.Cleanup()
 }
 
 func TestTell(_t *testing.T) {
@@ -327,7 +328,7 @@ func TestTell(_t *testing.T) {
 	}
 	t.RemoveFile("test.txt")
 	tail.Done()
-	Cleanup()
+	tail.Cleanup()
 }
 
 // Test library
