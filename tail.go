@@ -96,7 +96,7 @@ func TailFile(filename string, config Config) (*Tail, error) {
 
 	// when Logger was not specified in config, use default logger
 	if t.Logger == nil {
-		t.Logger = log.New(os.Stderr, "", log.LstdFlags)
+		t.Logger = DefaultLogger
 	}
 
 	if t.Poll {
