@@ -4,7 +4,6 @@ package tail
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -23,14 +22,17 @@ var (
 )
 
 type Line struct {
-	Text []byte
-	Time time.Time
-	Err  error // Error from tail
+	Time     time.Time
+	Text     []byte
+	Filename string
+	Offset   int64
+	OpenTime time.Time
+	Err      error // Error from tail
 }
 
 // NewLine returns a Line with present time.
 func NewLine(text []byte) *Line {
-	return &Line{text, time.Now(), nil}
+	return &Line{Text: text, Time: time.Now(), Err: nil}
 }
 
 // SeekInfo represents arguments to `os.Seek`
@@ -46,12 +48,12 @@ type Config struct {
 	ReOpen      bool      // Reopen recreated files (tail -F)
 	MustExist   bool      // Fail early if the file does not exist
 	Poll        bool      // Poll for file changes instead of using inotify
-	OpenNotify  bool      // Notify of Open file
 	RateLimiter *ratelimiter.LeakyBucket
 
 	// Generic IO
-	Follow      bool // Continue looking for new lines (tail -f)
-	MaxLineSize int  // If non-zero, split longer lines into multiple lines
+	Follow         bool          // Continue looking for new lines (tail -f)
+	MaxLineSize    int           // If non-zero, split longer lines into multiple lines
+	NotifyInterval time.Duration // Notice interval of the elapsed time
 
 	// Logger, when nil, is set to tail.DefaultLogger
 	// To disable logging: set field to tail.DiscardingLogger
@@ -61,12 +63,12 @@ type Config struct {
 type Tail struct {
 	Filename string
 	Lines    chan *Line
-	OpenTime chan time.Time
 	Config
 
-	file    *os.File
-	reader  *bufio.Reader
-	tracker *watch.InotifyTracker
+	file     *os.File
+	reader   *bufio.Reader
+	tracker  *watch.InotifyTracker
+	openTime time.Time
 
 	watcher watch.FileWatcher
 	changes *watch.FileChanges
@@ -93,7 +95,6 @@ func TailFile(filename string, config Config) (*Tail, error) {
 	t := &Tail{
 		Filename: filename,
 		Lines:    make(chan *Line),
-		OpenTime: make(chan time.Time, 1),
 		Config:   config,
 	}
 
@@ -188,7 +189,7 @@ func (tail *Tail) readLine() ([]byte, error) {
 		return line, err
 	}
 
-	line = bytes.TrimRight(line, "\n")
+	//line = bytes.TrimRight(line, "\n")
 
 	return line, err
 }
@@ -240,7 +241,7 @@ func (tail *Tail) tailFileSync() {
 				msg := fmt.Sprintf(
 					"Too much log activity; waiting a second " +
 						"before resuming tailing")
-				tail.Lines <- &Line{[]byte(msg), time.Now(), fmt.Errorf(msg)}
+				tail.Lines <- &Line{Text: []byte(msg), Time: time.Now(), Filename: tail.Filename, OpenTime: tail.openTime, Offset: offset, Err: fmt.Errorf(msg)}
 				select {
 				case <-time.After(time.Second):
 				case <-tail.Dying():
@@ -306,37 +307,47 @@ func (tail *Tail) waitForChanges() error {
 		tail.changes = tail.watcher.ChangeEvents(&tail.Tomb, st)
 	}
 
-	select {
-	case <-tail.changes.Modified:
-		return nil
-	case <-tail.changes.Deleted:
-		tail.changes = nil
-		if tail.ReOpen {
-			// XXX: we must not log from a library.
-			tail.Logger.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
+	for {
+		ticker := &time.Ticker{}
+		if tail.NotifyInterval != 0 {
+			ticker = time.NewTicker(tail.NotifyInterval)
+		}
+
+		select {
+		case <-ticker.C:
+			tail.sendLine([]byte{})
+			continue
+		case <-tail.changes.Modified:
+			return nil
+		case <-tail.changes.Deleted:
+			tail.changes = nil
+			if tail.ReOpen {
+				// XXX: we must not log from a library.
+				tail.Logger.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
+				if err := tail.reopen(); err != nil {
+					return err
+				}
+				tail.Logger.Printf("Successfully reopened %s", tail.Filename)
+				tail.openReader()
+				return nil
+			} else {
+				tail.Logger.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
+				return ErrStop
+			}
+		case <-tail.changes.Truncated:
+			// Always reopen truncated files (Follow is true)
+			tail.Logger.Printf("Re-opening truncated file %s ...", tail.Filename)
 			if err := tail.reopen(); err != nil {
 				return err
 			}
-			tail.Logger.Printf("Successfully reopened %s", tail.Filename)
+			tail.Logger.Printf("Successfully reopened truncated %s", tail.Filename)
 			tail.openReader()
 			return nil
-		} else {
-			tail.Logger.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
+		case <-tail.Dying():
 			return ErrStop
 		}
-	case <-tail.changes.Truncated:
-		// Always reopen truncated files (Follow is true)
-		tail.Logger.Printf("Re-opening truncated file %s ...", tail.Filename)
-		if err := tail.reopen(); err != nil {
-			return err
-		}
-		tail.Logger.Printf("Successfully reopened truncated %s", tail.Filename)
-		tail.openReader()
-		return nil
-	case <-tail.Dying():
-		return ErrStop
+		panic("unreachable")
 	}
-	panic("unreachable")
 }
 
 func (tail *Tail) openReader() {
@@ -346,9 +357,12 @@ func (tail *Tail) openReader() {
 	} else {
 		tail.reader = bufio.NewReader(tail.file)
 	}
-	if tail.OpenNotify {
-		tail.OpenTime <- time.Now()
+	fi, err := os.Stat(tail.Filename)
+	if err != nil {
+		tail.openTime = time.Now()
+		return
 	}
+	tail.openTime = fi.ModTime()
 }
 
 func (tail *Tail) seekEnd() error {
@@ -369,19 +383,15 @@ func (tail *Tail) seekTo(pos SeekInfo) error {
 // if necessary. Return false if rate limit is reached.
 func (tail *Tail) sendLine(line []byte) bool {
 	now := time.Now()
-	lines := [][]byte{line}
-
-	// Split longer lines
-	if tail.MaxLineSize > 0 && len(line) > tail.MaxLineSize {
-		lines = util.PartitionString(line, tail.MaxLineSize)
+	offset, err := tail.Tell()
+	if err != nil {
+		tail.Kill(err)
+		return true
 	}
-
-	for _, line := range lines {
-		tail.Lines <- &Line{line, now, nil}
-	}
+	tail.Lines <- &Line{Text: line, Time: now, Filename: tail.Filename, OpenTime: tail.openTime, Offset: offset, Err: nil}
 
 	if tail.Config.RateLimiter != nil {
-		ok := tail.Config.RateLimiter.Pour(uint16(len(lines)))
+		ok := tail.Config.RateLimiter.Pour(uint16(1))
 		if !ok {
 			tail.Logger.Printf("Leaky bucket full (%v); entering 1s cooloff period.\n",
 				tail.Filename)
