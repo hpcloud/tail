@@ -21,13 +21,20 @@ var (
 	ErrStop = fmt.Errorf("tail should now stop")
 )
 
+const (
+	NewLineNotify int = iota
+	NewFileNotify
+	TickerNotify
+)
+
 type Line struct {
-	Time     time.Time
-	Text     []byte
-	Filename string
-	Offset   int64
-	OpenTime time.Time
-	Err      error // Error from tail
+	Time       time.Time
+	Text       []byte
+	Filename   string
+	Offset     int64
+	OpenTime   time.Time
+	Err        error // Error from tail
+	NotifyType int
 }
 
 // NewLine returns a Line with present time.
@@ -210,8 +217,10 @@ func (tail *Tail) tailFileSync() {
 	}
 
 	// Seek to requested location on first open of the file.
+	offset := int64(0)
 	if tail.Location != nil {
-		_, err := tail.file.Seek(tail.Location.Offset, tail.Location.Whence)
+		offset = tail.Location.Offset
+		_, err := tail.file.Seek(offset, tail.Location.Whence)
 		tail.Logger.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
 		if err != nil {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
@@ -220,6 +229,7 @@ func (tail *Tail) tailFileSync() {
 	}
 
 	tail.openReader()
+	tail.Lines <- &Line{NotifyType: NewFileNotify, Filename: tail.Filename, Offset: offset, Time: time.Now(), OpenTime: tail.openTime}
 
 	// Read line by line.
 	for {
@@ -315,7 +325,11 @@ func (tail *Tail) waitForChanges() error {
 
 		select {
 		case <-ticker.C:
-			tail.sendLine([]byte{})
+			offset, err := tail.Tell()
+			if err != nil {
+				return err
+			}
+			tail.Lines <- &Line{NotifyType: TickerNotify, Time: time.Now(), Filename: tail.Filename, OpenTime: tail.openTime, Offset: offset}
 			continue
 		case <-tail.changes.Modified:
 			return nil
@@ -388,7 +402,7 @@ func (tail *Tail) sendLine(line []byte) bool {
 		tail.Kill(err)
 		return true
 	}
-	tail.Lines <- &Line{Text: line, Time: now, Filename: tail.Filename, OpenTime: tail.openTime, Offset: offset, Err: nil}
+	tail.Lines <- &Line{NotifyType: NewLineNotify, Text: line, Time: now, Filename: tail.Filename, OpenTime: tail.openTime, Offset: offset}
 
 	if tail.Config.RateLimiter != nil {
 		ok := tail.Config.RateLimiter.Pour(uint16(1))
