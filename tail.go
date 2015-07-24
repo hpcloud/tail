@@ -75,6 +75,7 @@ type Tail struct {
 	file     *os.File
 	reader   *bufio.Reader
 	tracker  *watch.InotifyTracker
+	ticker   *time.Ticker
 	openTime time.Time
 
 	watcher watch.FileWatcher
@@ -129,6 +130,10 @@ func TailFile(filename string, config Config) (*Tail, error) {
 		}
 	}
 
+	t.ticker = &time.Ticker{}
+	if t.NotifyInterval != 0 {
+		t.ticker = time.NewTicker(t.NotifyInterval)
+	}
 	go t.tailFileSync()
 
 	return t, nil
@@ -318,13 +323,9 @@ func (tail *Tail) waitForChanges() error {
 	}
 
 	for {
-		ticker := &time.Ticker{}
-		if tail.NotifyInterval != 0 {
-			ticker = time.NewTicker(tail.NotifyInterval)
-		}
 
 		select {
-		case <-ticker.C:
+		case <-tail.ticker.C:
 			offset, err := tail.Tell()
 			if err != nil {
 				return err
