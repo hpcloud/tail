@@ -130,10 +130,6 @@ func TailFile(filename string, config Config) (*Tail, error) {
 		}
 	}
 
-	t.ticker = &time.Ticker{}
-	if t.NotifyInterval != 0 {
-		t.ticker = time.NewTicker(t.NotifyInterval)
-	}
 	go t.tailFileSync()
 
 	return t, nil
@@ -209,6 +205,12 @@ func (tail *Tail) readLine() ([]byte, error) {
 func (tail *Tail) tailFileSync() {
 	defer tail.Done()
 	defer tail.close()
+
+	tail.ticker = &time.Ticker{}
+	if tail.NotifyInterval != 0 {
+		tail.ticker = time.NewTicker(tail.NotifyInterval)
+	}
+	defer tail.ticker.Stop()
 
 	if !tail.MustExist {
 		// deferred first open.
