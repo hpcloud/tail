@@ -4,6 +4,7 @@ package watch
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -99,7 +100,8 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 
 			case evt.IsRename():
 				changes.NotifyDeleted()
-				return
+				continue
+				//return
 
 			case evt.IsModify():
 				fi, err := os.Stat(fw.Filename)
@@ -114,8 +116,10 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 				fw.Size = fi.Size()
 
 				if prevSize > 0 && prevSize > fw.Size {
+					log.Printf("prevSize:%d,fw.Size:%d", prevSize, fw.Size)
 					changes.NotifyTruncated()
 				} else if prevSize > 0 && prevSize == fw.Size && fw.Size <= headerSize && fi.ModTime().Sub(fw.ModTime) > logrotateTime {
+					log.Printf("logrotateTime:%s", logrotateTime)
 					// also capture log_header only updates
 					changes.NotifyTruncated()
 				} else {

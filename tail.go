@@ -82,6 +82,7 @@ type Tail struct {
 	watcher      watch.FileWatcher
 	changes      *watch.FileChanges
 	reOpenNotify <-chan time.Time
+	reOpenModify chan time.Time
 
 	tomb.Tomb // provides: Done, Kill, Dying
 }
@@ -328,6 +329,7 @@ func (tail *Tail) waitForChanges() error {
 		tail.changes = tail.watcher.ChangeEvents(&tail.Tomb, st)
 	}
 
+	tail.reOpenModify = make(chan time.Time)
 	for {
 
 		select {
@@ -340,10 +342,13 @@ func (tail *Tail) waitForChanges() error {
 			continue
 		case <-tail.changes.Modified:
 			return nil
+		case <-tail.reOpenModify:
+			return nil
 		case <-tail.changes.Deleted:
 			if tail.ReOpen {
 				tail.Logger.Printf("moved/deleted file %s ... Reopen delay %s", tail.Filename, tail.ReOpenDelay)
 				tail.reOpenNotify = time.After(tail.ReOpenDelay)
+				go reOpenModify(tail.reOpenModify, tail.ReOpenDelay)
 				continue
 			} else {
 				tail.changes = nil
@@ -373,6 +378,14 @@ func (tail *Tail) waitForChanges() error {
 			return ErrStop
 		}
 		panic("unreachable")
+	}
+}
+
+func reOpenModify(c chan time.Time, delay time.Duration) {
+	t := time.Now()
+	for time.Now().Sub(t) < delay {
+		time.Sleep(1 * time.Second)
+		c <- time.Now()
 	}
 }
 
