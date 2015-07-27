@@ -341,6 +341,7 @@ func (tail *Tail) waitForChanges() error {
 			return nil
 		case <-tail.changes.Deleted:
 			if tail.ReOpen {
+				tail.Logger.Printf("moved/deleted file %s ... Reopen delay %s", tail.Filename, tail.ReOpenDelay)
 				tail.reOpenNotify = time.After(tail.ReOpenDelay)
 				continue
 			} else {
