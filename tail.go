@@ -121,6 +121,7 @@ func TailFile(filename string, config Config) (*Tail, error) {
 		if err != nil {
 			return nil, err
 		}
+		t.Logger.Printf("start InotifyFileWatcher: %s", filename)
 		t.watcher = watch.NewInotifyFileWatcher(filename, w)
 	}
 
