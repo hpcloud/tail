@@ -51,10 +51,11 @@ type SeekInfo struct {
 // Config is used to specify how a file must be tailed.
 type Config struct {
 	// File-specifc
-	Location    *SeekInfo // Seek to this location before tailing
-	ReOpen      bool      // Reopen recreated files (tail -F)
-	MustExist   bool      // Fail early if the file does not exist
-	Poll        bool      // Poll for file changes instead of using inotify
+	Location    *SeekInfo     // Seek to this location before tailing
+	ReOpen      bool          // Reopen recreated files (tail -F)
+	ReOpenDelay time.Duration // Reopen Delay
+	MustExist   bool          // Fail early if the file does not exist
+	Poll        bool          // Poll for file changes instead of using inotify
 	RateLimiter *ratelimiter.LeakyBucket
 
 	// Generic IO
@@ -78,8 +79,9 @@ type Tail struct {
 	ticker   *time.Ticker
 	openTime time.Time
 
-	watcher watch.FileWatcher
-	changes *watch.FileChanges
+	watcher      watch.FileWatcher
+	changes      *watch.FileChanges
+	reOpenNotify <-chan time.Time
 
 	tomb.Tomb // provides: Done, Kill, Dying
 }
@@ -206,6 +208,7 @@ func (tail *Tail) tailFileSync() {
 	defer tail.Done()
 	defer tail.close()
 
+	tail.reOpenNotify = make(chan time.Time)
 	tail.ticker = &time.Ticker{}
 	if tail.NotifyInterval != 0 {
 		tail.ticker = time.NewTicker(tail.NotifyInterval)
@@ -337,17 +340,11 @@ func (tail *Tail) waitForChanges() error {
 		case <-tail.changes.Modified:
 			return nil
 		case <-tail.changes.Deleted:
-			tail.changes = nil
 			if tail.ReOpen {
-				// XXX: we must not log from a library.
-				tail.Logger.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
-				if err := tail.reopen(); err != nil {
-					return err
-				}
-				tail.Logger.Printf("Successfully reopened %s", tail.Filename)
-				tail.openReader()
-				return nil
+				tail.reOpenNotify = time.After(tail.ReOpenDelay)
+				continue
 			} else {
+				tail.changes = nil
 				tail.Logger.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
 				return ErrStop
 			}
@@ -358,6 +355,16 @@ func (tail *Tail) waitForChanges() error {
 				return err
 			}
 			tail.Logger.Printf("Successfully reopened truncated %s", tail.Filename)
+			tail.openReader()
+			return nil
+		case <-tail.reOpenNotify:
+			tail.changes = nil
+			// XXX: we must not log from a library.
+			tail.Logger.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
+			if err := tail.reopen(); err != nil {
+				return err
+			}
+			tail.Logger.Printf("Successfully reopened %s", tail.Filename)
 			tail.openReader()
 			return nil
 		case <-tail.Dying():
