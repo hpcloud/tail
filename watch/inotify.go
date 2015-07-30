@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/hpcloud/tail/util"
+
 	"gopkg.in/fsnotify.v0"
 	"gopkg.in/tomb.v1"
 )
@@ -16,11 +17,10 @@ import (
 type InotifyFileWatcher struct {
 	Filename string
 	Size     int64
-	w        *fsnotify.Watcher
 }
 
-func NewInotifyFileWatcher(filename string, w *fsnotify.Watcher) *InotifyFileWatcher {
-	fw := &InotifyFileWatcher{filename, 0, w}
+func NewInotifyFileWatcher(filename string) *InotifyFileWatcher {
+	fw := &InotifyFileWatcher{filename, 0}
 	return fw
 }
 
@@ -28,11 +28,11 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 	dirname := filepath.Dir(fw.Filename)
 
 	// Watch for new files to be created in the parent directory.
-	err := fw.w.WatchFlags(dirname, fsnotify.FSN_CREATE)
+	err := shared.WatchFlags(dirname, fsnotify.FSN_CREATE)
 	if err != nil {
 		return err
 	}
-	defer fw.w.RemoveWatch(dirname)
+	defer shared.RemoveWatch(dirname)
 
 	// Do a real check now as the file might have been created before
 	// calling `WatchFlags` above.
@@ -41,9 +41,11 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 		return err
 	}
 
+	events := shared.Events(fw.Filename)
+
 	for {
 		select {
-		case evt, ok := <-fw.w.Event:
+		case evt, ok := <-events:
 			if !ok {
 				return fmt.Errorf("inotify watcher has been closed")
 			} else if evt.Name == fw.Filename {
@@ -59,16 +61,18 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileChanges {
 	changes := NewFileChanges()
 
-	err := fw.w.Watch(fw.Filename)
+	err := shared.Watch(fw.Filename)
 	if err != nil {
-		util.Fatal("Error watching %v: %v", fw.Filename, err)
+		go changes.NotifyDeleted()
 	}
 
 	fw.Size = fi.Size()
 
 	go func() {
-		defer fw.w.RemoveWatch(fw.Filename)
+		defer shared.RemoveWatch(fw.Filename)
 		defer changes.Close()
+
+		events := shared.Events(fw.Filename)
 
 		for {
 			prevSize := fw.Size
@@ -77,7 +81,7 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 			var ok bool
 
 			select {
-			case evt, ok = <-fw.w.Event:
+			case evt, ok = <-events:
 				if !ok {
 					return
 				}
