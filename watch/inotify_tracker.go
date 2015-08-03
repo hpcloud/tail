@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"syscall"
 
 	"github.com/hpcloud/tail/util"
 
@@ -113,8 +114,12 @@ func (shared *InotifyTracker) run() {
 		case err, open := <-shared.watcher.Error:
 			if !open {
 				return
+			} else if err != nil {
+				sysErr, ok := err.(*os.SyscallError)
+				if !ok || sysErr.Err != syscall.EINTR {
+					logger.Printf("Error in Watcher Error channel: %s", err)
+				}
 			}
-			logger.Printf("Error in Watcher Errors channel: %s", err)
 
 		case <-shared.done:
 			return
