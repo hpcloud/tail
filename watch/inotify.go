@@ -28,11 +28,11 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 	dirname := filepath.Dir(fw.Filename)
 
 	// Watch for new files to be created in the parent directory.
-	err := shared.WatchFlags(dirname, fsnotify.FSN_CREATE)
+	err := WatchFlags(dirname, fsnotify.FSN_CREATE)
 	if err != nil {
 		return err
 	}
-	defer shared.RemoveWatch(dirname)
+	defer RemoveWatch(dirname)
 
 	// Do a real check now as the file might have been created before
 	// calling `WatchFlags` above.
@@ -41,7 +41,7 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 		return err
 	}
 
-	events := shared.Events(fw.Filename)
+	events := Events(fw.Filename)
 
 	for {
 		select {
@@ -61,7 +61,7 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileChanges {
 	changes := NewFileChanges()
 
-	err := shared.Watch(fw.Filename)
+	err := Watch(fw.Filename)
 	if err != nil {
 		go changes.NotifyDeleted()
 	}
@@ -69,10 +69,10 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 	fw.Size = fi.Size()
 
 	go func() {
-		defer shared.RemoveWatch(fw.Filename)
+		defer RemoveWatch(fw.Filename)
 		defer changes.Close()
 
-		events := shared.Events(fw.Filename)
+		events := Events(fw.Filename)
 
 		for {
 			prevSize := fw.Size

@@ -30,18 +30,19 @@ type watchInfo struct {
 
 var (
 	// globally shared InotifyTracker; ensures only one fsnotify.Watcher is used
-	shared = &InotifyTracker{
-		mux:    sync.Mutex{},
-		chans:  make(map[string]chan *fsnotify.FileEvent),
-		done:   make(map[string]chan bool),
-		watch:  make(chan *watchInfo),
-		remove: make(chan string),
-		error:  make(chan error),
-	}
+	shared *InotifyTracker
 
 	// these are used to ensure the shared InotifyTracker is run exactly once
-	once  = &sync.Once{}
+	once  = sync.Once{}
 	goRun = func() {
+		shared = &InotifyTracker{
+			mux:    sync.Mutex{},
+			chans:  make(map[string]chan *fsnotify.FileEvent),
+			done:   make(map[string]chan bool),
+			watch:  make(chan *watchInfo),
+			remove: make(chan string),
+			error:  make(chan error),
+		}
 		go shared.run()
 	}
 
@@ -50,13 +51,13 @@ var (
 
 // WatchFlags signals the run goroutine to begin watching the input filename using
 // using all flags.
-func (shared *InotifyTracker) Watch(fname string) error {
-	return shared.WatchFlags(fname, fsnotify.FSN_ALL)
+func Watch(fname string) error {
+	return WatchFlags(fname, fsnotify.FSN_ALL)
 }
 
 // WatchFlags signals the run goroutine to begin watching the input filename using
 // using the input flags.
-func (shared *InotifyTracker) WatchFlags(fname string, flags uint32) error {
+func WatchFlags(fname string, flags uint32) error {
 	// start running the shared InotifyTracker if not already running
 	once.Do(goRun)
 
@@ -68,7 +69,7 @@ func (shared *InotifyTracker) WatchFlags(fname string, flags uint32) error {
 }
 
 // RemoveWatch signals the run goroutine to remove the watch for the input filename
-func (shared *InotifyTracker) RemoveWatch(fname string) {
+func RemoveWatch(fname string) {
 	// start running the shared InotifyTracker if not already running
 	once.Do(goRun)
 
@@ -86,17 +87,16 @@ func (shared *InotifyTracker) RemoveWatch(fname string) {
 // Events returns a channel to which FileEvents corresponding to the input filename
 // will be sent. This channel will be closed when removeWatch is called on this
 // filename.
-func (shared *InotifyTracker) Events(fname string) chan *fsnotify.FileEvent {
+func Events(fname string) chan *fsnotify.FileEvent {
 	shared.mux.Lock()
 	defer shared.mux.Unlock()
 
 	return shared.chans[fname]
 }
 
-// Cleanup removes the watch for the input filename and closes the shared Watcher
-// if there are no more targets.
+// Cleanup removes the watch for the input filename if necessary.
 func Cleanup(fname string) {
-	shared.RemoveWatch(fname)
+	RemoveWatch(fname)
 }
 
 // watchFlags calls fsnotify.WatchFlags for the input filename and flags, creating
