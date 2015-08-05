@@ -17,6 +17,7 @@ type InotifyTracker struct {
 	mux     sync.Mutex
 	watcher *fsnotify.Watcher
 	chans   map[string]chan *fsnotify.FileEvent
+	done    map[string]chan bool
 	watch   chan *watchInfo
 	remove  chan string
 	error   chan error
@@ -32,6 +33,7 @@ var (
 	shared = &InotifyTracker{
 		mux:    sync.Mutex{},
 		chans:  make(map[string]chan *fsnotify.FileEvent),
+		done:   make(map[string]chan bool),
 		watch:  make(chan *watchInfo),
 		remove: make(chan string),
 		error:  make(chan error),
@@ -70,6 +72,14 @@ func (shared *InotifyTracker) RemoveWatch(fname string) {
 	// start running the shared InotifyTracker if not already running
 	once.Do(goRun)
 
+	shared.mux.Lock()
+	done := shared.done[fname]
+	if done != nil {
+		delete(shared.done, fname)
+		close(done)
+	}
+	shared.mux.Unlock()
+
 	shared.remove <- fname
 }
 
@@ -97,6 +107,7 @@ func (shared *InotifyTracker) watchFlags(fname string, flags uint32) error {
 
 	if shared.chans[fname] == nil {
 		shared.chans[fname] = make(chan *fsnotify.FileEvent)
+		shared.done[fname] = make(chan bool)
 	}
 	return shared.watcher.WatchFlags(fname, flags)
 }
@@ -117,11 +128,15 @@ func (shared *InotifyTracker) removeWatch(fname string) {
 
 // sendEvent sends the input event to the appropriate Tail.
 func (shared *InotifyTracker) sendEvent(event *fsnotify.FileEvent) {
-	ch := shared.Events(event.Name)
-	if ch != nil {
+	shared.mux.Lock()
+	ch := shared.chans[event.Name]
+	done := shared.done[event.Name]
+	shared.mux.Unlock()
+
+	if ch != nil && done != nil {
 		select {
 		case ch <- event:
-		default:
+		case <-done:
 		}
 	}
 }
