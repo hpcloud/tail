@@ -71,7 +71,7 @@ type Tail struct {
 
 	tomb.Tomb // provides: Done, Kill, Dying
 
-	lastRotatedAt time.Time // Last delete or truncate time
+	ladtDelChReceived time.Time // Last delete channel received time
 }
 
 var (
@@ -311,9 +311,9 @@ func (tail *Tail) waitForChanges() error {
 	case <-tail.changes.Deleted:
 		now := time.Now()
 		defer func() {
-			tail.lastRotatedAt = now
+			tail.ladtDelChReceived = now
 		}()
-		if !tail.lastRotatedAt.Before(now.Add(-1 * time.Second)) {
+		if !tail.ladtDelChReceived.Before(now.Add(-1 * time.Second)) {
 			return nil
 		}
 		tail.changes = nil
