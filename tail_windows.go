@@ -3,7 +3,7 @@
 package tail
 
 import (
-	"github.com/ActiveState/tail/winfile"
+	"github.com/masahide/tail/winfile"
 	"os"
 )
 

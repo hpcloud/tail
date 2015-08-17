@@ -9,12 +9,11 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 	"time"
 
-	"github.com/ActiveState/tail/ratelimiter"
-	"github.com/ActiveState/tail/util"
-	"github.com/ActiveState/tail/watch"
+	"github.com/masahide/tail/ratelimiter"
+	"github.com/masahide/tail/util"
+	"github.com/masahide/tail/watch"
 	"gopkg.in/tomb.v1"
 )
 
@@ -22,15 +21,25 @@ var (
 	ErrStop = fmt.Errorf("tail should now stop")
 )
 
+const (
+	NewLineNotify int = iota
+	NewFileNotify
+	TickerNotify
+)
+
 type Line struct {
-	Text string
-	Time time.Time
-	Err  error // Error from tail
+	Time       time.Time
+	Text       []byte
+	Filename   string
+	Offset     int64
+	OpenTime   time.Time
+	Err        error // Error from tail
+	NotifyType int
 }
 
 // NewLine returns a Line with present time.
-func NewLine(text string) *Line {
-	return &Line{text, time.Now(), nil}
+func NewLine(text []byte) *Line {
+	return &Line{Text: text, Time: time.Now(), Err: nil}
 }
 
 // SeekInfo represents arguments to `os.Seek`
@@ -42,15 +51,17 @@ type SeekInfo struct {
 // Config is used to specify how a file must be tailed.
 type Config struct {
 	// File-specifc
-	Location    *SeekInfo // Seek to this location before tailing
-	ReOpen      bool      // Reopen recreated files (tail -F)
-	MustExist   bool      // Fail early if the file does not exist
-	Poll        bool      // Poll for file changes instead of using inotify
+	Location    *SeekInfo     // Seek to this location before tailing
+	ReOpen      bool          // Reopen recreated files (tail -F)
+	ReOpenDelay time.Duration // Reopen Delay
+	MustExist   bool          // Fail early if the file does not exist
+	Poll        bool          // Poll for file changes instead of using inotify
 	RateLimiter *ratelimiter.LeakyBucket
 
 	// Generic IO
-	Follow      bool // Continue looking for new lines (tail -f)
-	MaxLineSize int  // If non-zero, split longer lines into multiple lines
+	Follow         bool          // Continue looking for new lines (tail -f)
+	MaxLineSize    int           // If non-zero, split longer lines into multiple lines
+	NotifyInterval time.Duration // Notice interval of the elapsed time
 
 	// Logger, when nil, is set to tail.DefaultLogger
 	// To disable logging: set field to tail.DiscardingLogger
@@ -62,12 +73,16 @@ type Tail struct {
 	Lines    chan *Line
 	Config
 
-	file    *os.File
-	reader  *bufio.Reader
-	tracker *watch.InotifyTracker
+	file     *os.File
+	reader   *bufio.Reader
+	tracker  *watch.InotifyTracker
+	ticker   *time.Ticker
+	openTime time.Time
 
-	watcher watch.FileWatcher
-	changes *watch.FileChanges
+	watcher      watch.FileWatcher
+	changes      *watch.FileChanges
+	reOpenNotify <-chan time.Time
+	reOpenModify chan time.Time
 
 	tomb.Tomb // provides: Done, Kill, Dying
 }
@@ -107,6 +122,7 @@ func TailFile(filename string, config Config) (*Tail, error) {
 		if err != nil {
 			return nil, err
 		}
+		t.Logger.Printf("start InotifyFileWatcher: %s", filename)
 		t.watcher = watch.NewInotifyFileWatcher(filename, w)
 	}
 
@@ -176,8 +192,8 @@ func (tail *Tail) reopen() error {
 	return nil
 }
 
-func (tail *Tail) readLine() (string, error) {
-	line, err := tail.reader.ReadString('\n')
+func (tail *Tail) readLine() ([]byte, error) {
+	line, err := tail.reader.ReadBytes(byte('\n'))
 	if err != nil {
 		// Note ReadString "returns the data read before the error" in
 		// case of an error, including EOF, so we return it as is. The
@@ -185,7 +201,7 @@ func (tail *Tail) readLine() (string, error) {
 		return line, err
 	}
 
-	line = strings.TrimRight(line, "\n")
+	//line = bytes.TrimRight(line, "\n")
 
 	return line, err
 }
@@ -193,6 +209,13 @@ func (tail *Tail) readLine() (string, error) {
 func (tail *Tail) tailFileSync() {
 	defer tail.Done()
 	defer tail.close()
+
+	tail.reOpenNotify = make(chan time.Time)
+	tail.ticker = &time.Ticker{}
+	if tail.NotifyInterval != 0 {
+		tail.ticker = time.NewTicker(tail.NotifyInterval)
+	}
+	defer tail.ticker.Stop()
 
 	if !tail.MustExist {
 		// deferred first open.
@@ -206,8 +229,10 @@ func (tail *Tail) tailFileSync() {
 	}
 
 	// Seek to requested location on first open of the file.
+	offset := int64(0)
 	if tail.Location != nil {
-		_, err := tail.file.Seek(tail.Location.Offset, tail.Location.Whence)
+		offset = tail.Location.Offset
+		_, err := tail.file.Seek(offset, tail.Location.Whence)
 		tail.Logger.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
 		if err != nil {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
@@ -216,6 +241,7 @@ func (tail *Tail) tailFileSync() {
 	}
 
 	tail.openReader()
+	tail.Lines <- &Line{NotifyType: NewFileNotify, Filename: tail.Filename, Offset: offset, Time: time.Now(), OpenTime: tail.openTime}
 
 	// Read line by line.
 	for {
@@ -237,7 +263,7 @@ func (tail *Tail) tailFileSync() {
 				msg := fmt.Sprintf(
 					"Too much log activity; waiting a second " +
 						"before resuming tailing")
-				tail.Lines <- &Line{msg, time.Now(), fmt.Errorf(msg)}
+				tail.Lines <- &Line{Text: []byte(msg), Time: time.Now(), Filename: tail.Filename, OpenTime: tail.openTime, Offset: offset, Err: fmt.Errorf(msg)}
 				select {
 				case <-time.After(time.Second):
 				case <-tail.Dying():
@@ -251,13 +277,13 @@ func (tail *Tail) tailFileSync() {
 			}
 		} else if err == io.EOF {
 			if !tail.Follow {
-				if line != "" {
+				if len(line) != 0 {
 					tail.sendLine(line)
 				}
 				return
 			}
 
-			if tail.Follow && line != "" {
+			if tail.Follow && len(line) != 0 {
 				// this has the potential to never return the last line if
 				// it's not followed by a newline; seems a fair trade here
 				err := tail.seekTo(SeekInfo{Offset: offset, Whence: 0})
@@ -303,12 +329,43 @@ func (tail *Tail) waitForChanges() error {
 		tail.changes = tail.watcher.ChangeEvents(&tail.Tomb, st)
 	}
 
-	select {
-	case <-tail.changes.Modified:
-		return nil
-	case <-tail.changes.Deleted:
-		tail.changes = nil
-		if tail.ReOpen {
+	tail.reOpenModify = make(chan time.Time)
+	for {
+
+		select {
+		case <-tail.ticker.C:
+			offset, err := tail.Tell()
+			if err != nil {
+				return err
+			}
+			tail.Lines <- &Line{NotifyType: TickerNotify, Time: time.Now(), Filename: tail.Filename, OpenTime: tail.openTime, Offset: offset}
+			continue
+		case <-tail.changes.Modified:
+			return nil
+		case <-tail.reOpenModify:
+			return nil
+		case <-tail.changes.Deleted:
+			if tail.ReOpen {
+				tail.Logger.Printf("moved/deleted file %s ... Reopen delay %s", tail.Filename, tail.ReOpenDelay)
+				tail.reOpenNotify = time.After(tail.ReOpenDelay)
+				go reOpenModify(tail.reOpenModify, tail.ReOpenDelay)
+				continue
+			} else {
+				tail.changes = nil
+				tail.Logger.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
+				return ErrStop
+			}
+		case <-tail.changes.Truncated:
+			// Always reopen truncated files (Follow is true)
+			tail.Logger.Printf("Re-opening truncated file %s ...", tail.Filename)
+			if err := tail.reopen(); err != nil {
+				return err
+			}
+			tail.Logger.Printf("Successfully reopened truncated %s", tail.Filename)
+			tail.openReader()
+			return nil
+		case <-tail.reOpenNotify:
+			tail.changes = nil
 			// XXX: we must not log from a library.
 			tail.Logger.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
 			if err := tail.reopen(); err != nil {
@@ -317,23 +374,19 @@ func (tail *Tail) waitForChanges() error {
 			tail.Logger.Printf("Successfully reopened %s", tail.Filename)
 			tail.openReader()
 			return nil
-		} else {
-			tail.Logger.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
+		case <-tail.Dying():
 			return ErrStop
 		}
-	case <-tail.changes.Truncated:
-		// Always reopen truncated files (Follow is true)
-		tail.Logger.Printf("Re-opening truncated file %s ...", tail.Filename)
-		if err := tail.reopen(); err != nil {
-			return err
-		}
-		tail.Logger.Printf("Successfully reopened truncated %s", tail.Filename)
-		tail.openReader()
-		return nil
-	case <-tail.Dying():
-		return ErrStop
+		panic("unreachable")
 	}
-	panic("unreachable")
+}
+
+func reOpenModify(c chan time.Time, delay time.Duration) {
+	t := time.Now()
+	for time.Now().Sub(t) < delay {
+		time.Sleep(1 * time.Second)
+		c <- time.Now()
+	}
 }
 
 func (tail *Tail) openReader() {
@@ -343,6 +396,12 @@ func (tail *Tail) openReader() {
 	} else {
 		tail.reader = bufio.NewReader(tail.file)
 	}
+	fi, err := os.Stat(tail.Filename)
+	if err != nil {
+		tail.openTime = time.Now()
+		return
+	}
+	tail.openTime = fi.ModTime()
 }
 
 func (tail *Tail) seekEnd() error {
@@ -361,21 +420,17 @@ func (tail *Tail) seekTo(pos SeekInfo) error {
 
 // sendLine sends the line(s) to Lines channel, splitting longer lines
 // if necessary. Return false if rate limit is reached.
-func (tail *Tail) sendLine(line string) bool {
+func (tail *Tail) sendLine(line []byte) bool {
 	now := time.Now()
-	lines := []string{line}
-
-	// Split longer lines
-	if tail.MaxLineSize > 0 && len(line) > tail.MaxLineSize {
-		lines = util.PartitionString(line, tail.MaxLineSize)
+	offset, err := tail.Tell()
+	if err != nil {
+		tail.Kill(err)
+		return true
 	}
-
-	for _, line := range lines {
-		tail.Lines <- &Line{line, now, nil}
-	}
+	tail.Lines <- &Line{NotifyType: NewLineNotify, Text: line, Time: now, Filename: tail.Filename, OpenTime: tail.openTime, Offset: offset}
 
 	if tail.Config.RateLimiter != nil {
-		ok := tail.Config.RateLimiter.Pour(uint16(len(lines)))
+		ok := tail.Config.RateLimiter.Pour(uint16(1))
 		if !ok {
 			tail.Logger.Printf("Leaky bucket full (%v); entering 1s cooloff period.\n",
 				tail.Filename)

@@ -1,5 +1,7 @@
 package watch
 
+import "log"
+
 type FileChanges struct {
 	Modified  chan bool // Channel to get notified of modifications
 	Truncated chan bool // Channel to get notified of truncations
@@ -24,6 +26,7 @@ func (fc *FileChanges) NotifyDeleted() {
 }
 
 func (fc *FileChanges) Close() {
+	log.Printf("Close FileChanges.")
 	close(fc.Modified)
 	close(fc.Truncated)
 	close(fc.Deleted)
