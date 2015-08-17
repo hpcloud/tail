@@ -85,8 +85,6 @@ type Tail struct {
 	reOpenModify chan time.Time
 
 	tomb.Tomb // provides: Done, Kill, Dying
-
-	lastDelChReceived time.Time // Last delete channel received time
 }
 
 var (
@@ -331,21 +329,6 @@ func (tail *Tail) waitForChanges() error {
 		tail.changes = tail.watcher.ChangeEvents(&tail.Tomb, st)
 	}
 
-<<<<<<< HEAD
-	select {
-	case <-tail.changes.Modified:
-		return nil
-	case <-tail.changes.Deleted:
-		now := time.Now()
-		defer func() {
-			tail.lastDelChReceived = now
-		}()
-		if !tail.lastDelChReceived.Before(now.Add(-1 * time.Second)) {
-			return nil
-		}
-		tail.changes = nil
-		if tail.ReOpen {
-=======
 	tail.reOpenModify = make(chan time.Time)
 	for {
 
@@ -383,7 +366,6 @@ func (tail *Tail) waitForChanges() error {
 			return nil
 		case <-tail.reOpenNotify:
 			tail.changes = nil
->>>>>>> 358dfab099d1563a875a0550c2a89f9205ac64fa
 			// XXX: we must not log from a library.
 			tail.Logger.Printf("Re-opening moved/deleted file %s ...", tail.Filename)
 			if err := tail.reopen(); err != nil {
@@ -395,12 +377,6 @@ func (tail *Tail) waitForChanges() error {
 		case <-tail.Dying():
 			return ErrStop
 		}
-<<<<<<< HEAD
-	case <-tail.changes.Truncated:
-		return nil
-	case <-tail.Dying():
-		return ErrStop
-=======
 		panic("unreachable")
 	}
 }
@@ -410,7 +386,6 @@ func reOpenModify(c chan time.Time, delay time.Duration) {
 	for time.Now().Sub(t) < delay {
 		time.Sleep(1 * time.Second)
 		c <- time.Now()
->>>>>>> 358dfab099d1563a875a0550c2a89f9205ac64fa
 	}
 }
 
