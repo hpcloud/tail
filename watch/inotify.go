@@ -4,12 +4,19 @@ package watch
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"time"
 
-	"github.com/ActiveState/tail/util"
+	"github.com/masahide/tail/util"
 	"gopkg.in/fsnotify.v0"
 	"gopkg.in/tomb.v1"
+)
+
+const (
+	headerSize    = 4 * 1024
+	logrotateTime = 24*time.Hour - 5*time.Minute
 )
 
 // InotifyFileWatcher uses inotify to monitor file changes.
@@ -17,10 +24,11 @@ type InotifyFileWatcher struct {
 	Filename string
 	Size     int64
 	w        *fsnotify.Watcher
+	ModTime  time.Time
 }
 
 func NewInotifyFileWatcher(filename string, w *fsnotify.Watcher) *InotifyFileWatcher {
-	fw := &InotifyFileWatcher{filename, 0, w}
+	fw := &InotifyFileWatcher{filename, 0, w, time.Time{}}
 	return fw
 }
 
@@ -74,6 +82,7 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 	}
 
 	fw.Size = fi.Size()
+	fw.ModTime = fi.ModTime()
 
 	go func() {
 		defer fw.w.RemoveWatch(fw.Filename)
@@ -100,7 +109,8 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 
 			case evt.IsRename():
 				changes.NotifyDeleted()
-				return
+				continue
+				//return
 
 			case evt.IsModify():
 				fi, err := os.Stat(fw.Filename)
@@ -115,6 +125,11 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 				fw.Size = fi.Size()
 
 				if prevSize > 0 && prevSize > fw.Size {
+					log.Printf("prevSize:%d,fw.Size:%d", prevSize, fw.Size)
+					changes.NotifyTruncated()
+				} else if prevSize > 0 && prevSize == fw.Size && fw.Size <= headerSize && fi.ModTime().Sub(fw.ModTime) > logrotateTime {
+					log.Printf("logrotateTime:%s", logrotateTime)
+					// also capture log_header only updates
 					changes.NotifyTruncated()
 				} else {
 					changes.NotifyModified()

@@ -5,8 +5,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/ActiveState/tail"
 	"os"
+
+	"github.com/masahide/tail"
 )
 
 func args2config() (tail.Config, int64) {
@@ -55,7 +56,7 @@ func tailFile(filename string, config tail.Config, done chan bool) {
 		return
 	}
 	for line := range t.Lines {
-		fmt.Println(line.Text)
+		fmt.Println(string(line.Text))
 	}
 	err = t.Wait()
 	if err != nil {

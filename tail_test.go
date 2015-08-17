@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"./watch"
-	"github.com/ActiveState/tail/ratelimiter"
+	"github.com/masahide/tail/ratelimiter"
 )
 
 func init() {
