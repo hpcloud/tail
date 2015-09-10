@@ -77,7 +77,7 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 		for {
 			prevSize := fw.Size
 
-			var evt *fsnotify.Event
+			var evt fsnotify.Event
 			var ok bool
 
 			select {
