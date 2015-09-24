@@ -46,6 +46,7 @@ type Config struct {
 	ReOpen      bool      // Reopen recreated files (tail -F)
 	MustExist   bool      // Fail early if the file does not exist
 	Poll        bool      // Poll for file changes instead of using inotify
+	Pipe        bool      // Is a named pipe (mkfifo)
 	RateLimiter *ratelimiter.LeakyBucket
 
 	// Generic IO
@@ -217,13 +218,18 @@ func (tail *Tail) tailFileSync() {
 
 	tail.openReader()
 
+	var offset int64 = 0
+	var err error
 	// Read line by line.
 	for {
-		// grab the position in case we need to back up in the event of a half-line
-		offset, err := tail.Tell()
-		if err != nil {
-			tail.Kill(err)
-			return
+		// do not seek in named pipes
+		if !tail.Pipe {
+			// grab the position in case we need to back up in the event of a half-line
+			offset, err = tail.Tell()
+			if err != nil {
+				tail.Kill(err)
+				return
+			}
 		}
 
 		line, err := tail.readLine()
