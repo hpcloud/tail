@@ -59,15 +59,22 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileChanges {
 	changes := NewFileChanges()
 
-	err := fw.w.Watch(fw.Filename)
-	if err != nil {
+	if err := fw.w.Watch(fw.Filename); err != nil {
 		util.Fatal("Error watching %v: %v", fw.Filename, err)
+	}
+
+	// Watch the directory to be notified when the file is deleted since the file
+	// watch is on the inode, not the path.
+	dirname := filepath.Dir(fw.Filename)
+	if err := fw.w.WatchFlags(dirname, fsnotify.FSN_DELETE); err != nil {
+		util.Fatal("Error watching %v: %v", dirname, err)
 	}
 
 	fw.Size = fi.Size()
 
 	go func() {
 		defer fw.w.RemoveWatch(fw.Filename)
+		defer fw.w.RemoveWatch(dirname)
 		defer changes.Close()
 
 		for {
@@ -87,6 +94,9 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, fi os.FileInfo) *FileCh
 
 			switch {
 			case evt.IsDelete():
+				if filepath.Base(evt.Name) != filepath.Base(fw.Filename) {
+					continue
+				}
 				fallthrough
 
 			case evt.IsRename():
