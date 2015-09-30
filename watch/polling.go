@@ -91,6 +91,12 @@ func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, origFi os.FileInfo) *Fi
 				prevSize = fw.Size
 				continue
 			}
+			// File got bigger?
+			if prevSize > 0 && prevSize < fw.Size {
+				changes.NotifyModified()
+				prevSize = fw.Size
+				continue
+			}
 			prevSize = fw.Size
 
 			// File was appended to (changed)?
