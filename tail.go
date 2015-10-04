@@ -39,6 +39,18 @@ type SeekInfo struct {
 	Whence int // os.SEEK_*
 }
 
+type logger interface {
+	Fatal(v ...interface{})
+	Fatalf(format string, v ...interface{})
+	Fatalln(v ...interface{})
+	Panic(v ...interface{})
+	Panicf(format string, v ...interface{})
+	Panicln(v ...interface{})
+	Print(v ...interface{})
+	Printf(format string, v ...interface{})
+	Println(v ...interface{})
+}
+
 // Config is used to specify how a file must be tailed.
 type Config struct {
 	// File-specifc
@@ -54,7 +66,7 @@ type Config struct {
 
 	// Logger, when nil, is set to tail.DefaultLogger
 	// To disable logging: set field to tail.DiscardingLogger
-	Logger *log.Logger
+	Logger logger
 }
 
 type Tail struct {
