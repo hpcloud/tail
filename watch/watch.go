@@ -2,10 +2,7 @@
 
 package watch
 
-import (
-	"gopkg.in/tomb.v1"
-	"os"
-)
+import "gopkg.in/tomb.v1"
 
 // FileWatcher monitors file-level events.
 type FileWatcher interface {
@@ -16,5 +13,7 @@ type FileWatcher interface {
 	// deletion, renames or truncations. Returned FileChanges group of
 	// channels will be closed, thus become unusable, after a deletion
 	// or truncation event.
-	ChangeEvents(*tomb.Tomb, os.FileInfo) *FileChanges
+	// In order to properly report truncations, ChangeEvents requires
+	// the caller to pass their current offset in the file.
+	ChangeEvents(*tomb.Tomb, int64) *FileChanges
 }
