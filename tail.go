@@ -74,9 +74,8 @@ type Tail struct {
 	Lines    chan *Line
 	Config
 
-	file    *os.File
-	reader  *bufio.Reader
-	tracker *watch.InotifyTracker
+	file   *os.File
+	reader *bufio.Reader
 
 	watcher watch.FileWatcher
 	changes *watch.FileChanges
@@ -114,12 +113,7 @@ func TailFile(filename string, config Config) (*Tail, error) {
 	if t.Poll {
 		t.watcher = watch.NewPollingFileWatcher(filename)
 	} else {
-		t.tracker = watch.NewInotifyTracker()
-		w, err := t.tracker.NewWatcher()
-		if err != nil {
-			return nil, err
-		}
-		t.watcher = watch.NewInotifyFileWatcher(filename, w)
+		t.watcher = watch.NewInotifyFileWatcher(filename)
 	}
 
 	if t.MustExist {
@@ -308,11 +302,11 @@ func (tail *Tail) tailFileSync() {
 // reopened if ReOpen is true. Truncated files are always reopened.
 func (tail *Tail) waitForChanges() error {
 	if tail.changes == nil {
-		st, err := tail.file.Stat()
+		pos, err := tail.file.Seek(0, os.SEEK_CUR)
 		if err != nil {
 			return err
 		}
-		tail.changes = tail.watcher.ChangeEvents(&tail.Tomb, st)
+		tail.changes = tail.watcher.ChangeEvents(&tail.Tomb, pos)
 	}
 
 	select {
@@ -358,7 +352,7 @@ func (tail *Tail) openReader() {
 }
 
 func (tail *Tail) seekEnd() error {
-	return tail.seekTo(SeekInfo{Offset: 0, Whence: 2})
+	return tail.seekTo(SeekInfo{Offset: 0, Whence: os.SEEK_END})
 }
 
 func (tail *Tail) seekTo(pos SeekInfo) error {
@@ -402,7 +396,5 @@ func (tail *Tail) sendLine(line string) bool {
 // meant to be invoked from a process's exit handler. Linux kernel may not
 // automatically remove inotify watches after the process exits.
 func (tail *Tail) Cleanup() {
-	if tail.tracker != nil {
-		tail.tracker.CloseAll()
-	}
+	watch.Cleanup(tail.Filename)
 }

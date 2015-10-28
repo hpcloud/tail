@@ -40,14 +40,19 @@ func (fw *PollingFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 	panic("unreachable")
 }
 
-func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, origFi os.FileInfo) *FileChanges {
+func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) *FileChanges {
 	changes := NewFileChanges()
 	var prevModTime time.Time
 
 	// XXX: use tomb.Tomb to cleanly manage these goroutines. replace
 	// the fatal (below) with tomb's Kill.
 
-	fw.Size = origFi.Size()
+	fw.Size = pos
+	origFi, err := os.Stat(fw.Filename)
+	if err != nil {
+		changes.NotifyDeleted()
+		return changes
+	}
 
 	go func() {
 		defer changes.Close()

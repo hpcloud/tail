@@ -11,4 +11,4 @@ go:
   - 1.4.2
 
 install:
-  - go get gopkg.in/fsnotify.v0
+  - go get gopkg.in/fsnotify.v1
