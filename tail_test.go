@@ -9,7 +9,7 @@ import (
 	"./watch"
 	"bytes"
 	_ "fmt"
-	"github.com/ActiveState/tail/ratelimiter"
+	"github.com/hpcloud/tail/ratelimiter"
 	"io/ioutil"
 	"os"
 	"strings"

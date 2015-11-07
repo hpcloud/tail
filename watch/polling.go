@@ -3,7 +3,7 @@
 package watch
 
 import (
-	"github.com/ActiveState/tail/util"
+	"github.com/hpcloud/tail/util"
 	"gopkg.in/tomb.v1"
 	"os"
 	"time"
