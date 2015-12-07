@@ -331,6 +331,28 @@ func TestTell(_t *testing.T) {
 	tail.Cleanup()
 }
 
+func TestBlockUntilExists(_t *testing.T) {
+	t := NewTailTest("block-until-file-exists", _t)
+	config := Config{
+		Follow: true,
+	}
+	tail := t.StartTail("test.txt", config)
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		t.CreateFile("test.txt", "hello world\n")
+	}()
+	for l := range tail.Lines {
+		if l.Text != "hello world" {
+			t.Fatalf("mismatch; expected hello world, but got %s",
+				l.Text)
+		}
+		break
+	}
+	t.RemoveFile("test.txt")
+	tail.Stop()
+	tail.Cleanup()
+}
+
 // Test library
 
 type TailTest struct {
