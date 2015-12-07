@@ -41,14 +41,14 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 		return err
 	}
 
-	events := Events(fw.Filename)
+	events := Events(dirname)
 
 	for {
 		select {
 		case evt, ok := <-events:
 			if !ok {
 				return fmt.Errorf("inotify watcher has been closed")
-			} else if evt.Name == fw.Filename {
+			} else if filepath.Clean(evt.Name) == fw.Filename {
 				return nil
 			}
 		case <-t.Dying():
