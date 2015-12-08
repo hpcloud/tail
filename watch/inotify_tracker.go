@@ -5,6 +5,7 @@ package watch
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"syscall"
 
@@ -119,9 +120,14 @@ func (shared *InotifyTracker) removeWatch(fname string) {
 
 // sendEvent sends the input event to the appropriate Tail.
 func (shared *InotifyTracker) sendEvent(event fsnotify.Event) {
+	name := event.Name
+	if event.Op == fsnotify.Create {
+		name = filepath.Dir(name)
+	}
+
 	shared.mux.Lock()
-	ch := shared.chans[event.Name]
-	done := shared.done[event.Name]
+	ch := shared.chans[name]
+	done := shared.done[name]
 	shared.mux.Unlock()
 
 	if ch != nil && done != nil {
