@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/hpcloud/tail.svg)](https://travis-ci.org/ActiveState/tail)
+[![Build Status](https://travis-ci.org/hpcloud/tail.svg)](https://travis-ci.org/hpcloud/tail)
 
 # Go package for tail-ing files
 
