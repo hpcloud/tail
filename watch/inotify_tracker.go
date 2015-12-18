@@ -5,7 +5,6 @@ package watch
 import (
 	"log"
 	"os"
-	"path/filepath"
 	"sync"
 	"syscall"
 
@@ -15,23 +14,17 @@ import (
 )
 
 type InotifyTracker struct {
-	mux       sync.Mutex
-	watcher   *fsnotify.Watcher
-	chans     map[string]chan fsnotify.Event
-	done      map[string]chan bool
-	watchNums map[string]int
-	watch     chan *watchInfo
-	remove    chan *watchInfo
-	error     chan error
+	mux     sync.Mutex
+	watcher *fsnotify.Watcher
+	chans   map[string]chan fsnotify.Event
+	done    map[string]chan bool
+	watch   chan *watchInfo
+	remove  chan string
+	error   chan error
 }
 
 type watchInfo struct {
-	op    fsnotify.Op
 	fname string
-}
-
-func (this *watchInfo) isCreate() bool {
-	return this.op == fsnotify.Create
 }
 
 var (
@@ -42,13 +35,12 @@ var (
 	once  = sync.Once{}
 	goRun = func() {
 		shared = &InotifyTracker{
-			mux:       sync.Mutex{},
-			chans:     make(map[string]chan fsnotify.Event),
-			done:      make(map[string]chan bool),
-			watchNums: make(map[string]int),
-			watch:     make(chan *watchInfo),
-			remove:    make(chan *watchInfo),
-			error:     make(chan error),
+			mux:    sync.Mutex{},
+			chans:  make(map[string]chan fsnotify.Event),
+			done:   make(map[string]chan bool),
+			watch:  make(chan *watchInfo),
+			remove: make(chan string),
+			error:  make(chan error),
 		}
 		go shared.run()
 	}
@@ -58,58 +50,29 @@ var (
 
 // Watch signals the run goroutine to begin watching the input filename
 func Watch(fname string) error {
-	return watch(&watchInfo{
-		fname: fname,
-	})
-}
-
-// Watch create signals the run goroutine to begin watching the input filename
-// if call the WatchCreate function, don't call the Cleanup, call the RemoveWatchCreate
-func WatchCreate(fname string) error {
-	return watch(&watchInfo{
-		op:    fsnotify.Create,
-		fname: fname,
-	})
-}
-
-func watch(winfo *watchInfo) error {
 	// start running the shared InotifyTracker if not already running
 	once.Do(goRun)
 
-	winfo.fname = filepath.Clean(winfo.fname)
-	shared.watch <- winfo
+	shared.watch <- &watchInfo{
+		fname: fname,
+	}
 	return <-shared.error
 }
 
 // RemoveWatch signals the run goroutine to remove the watch for the input filename
 func RemoveWatch(fname string) {
-	remove(&watchInfo{
-		fname: fname,
-	})
-}
-
-// RemoveWatch create signals the run goroutine to remove the watch for the input filename
-func RemoveWatchCreate(fname string) {
-	remove(&watchInfo{
-		op:    fsnotify.Create,
-		fname: fname,
-	})
-}
-
-func remove(winfo *watchInfo) {
 	// start running the shared InotifyTracker if not already running
 	once.Do(goRun)
 
-	winfo.fname = filepath.Clean(winfo.fname)
 	shared.mux.Lock()
-	done := shared.done[winfo.fname]
+	done := shared.done[fname]
 	if done != nil {
-		delete(shared.done, winfo.fname)
+		delete(shared.done, fname)
 		close(done)
 	}
 	shared.mux.Unlock()
 
-	shared.remove <- winfo
+	shared.remove <- fname
 }
 
 // Events returns a channel to which FileEvents corresponding to the input filename
@@ -129,84 +92,36 @@ func Cleanup(fname string) {
 
 // watchFlags calls fsnotify.WatchFlags for the input filename and flags, creating
 // a new Watcher if the previous Watcher was closed.
-func (shared *InotifyTracker) addWatch(winfo *watchInfo) error {
+func (shared *InotifyTracker) addWatch(fname string) error {
 	shared.mux.Lock()
 	defer shared.mux.Unlock()
 
-	if shared.chans[winfo.fname] == nil {
-		shared.chans[winfo.fname] = make(chan fsnotify.Event)
-		shared.done[winfo.fname] = make(chan bool)
+	if shared.chans[fname] == nil {
+		shared.chans[fname] = make(chan fsnotify.Event)
+		shared.done[fname] = make(chan bool)
 	}
-
-	fname := winfo.fname
-	if winfo.isCreate() {
-		// Watch for new files to be created in the parent directory.
-		fname = filepath.Dir(fname)
-	}
-
-	// already in inotify watch
-	if shared.watchNums[fname] > 0 {
-		shared.watchNums[fname]++
-		if winfo.isCreate() {
-			shared.watchNums[winfo.fname]++
-		}
-		return nil
-	}
-
-	err := shared.watcher.Add(fname)
-	if err == nil {
-		shared.watchNums[fname]++
-		if winfo.isCreate() {
-			shared.watchNums[winfo.fname]++
-		}
-	}
-	return err
+	return shared.watcher.Add(fname)
 }
 
 // removeWatch calls fsnotify.RemoveWatch for the input filename and closes the
 // corresponding events channel.
-func (shared *InotifyTracker) removeWatch(winfo *watchInfo) {
+func (shared *InotifyTracker) removeWatch(fname string) {
 	shared.mux.Lock()
 	defer shared.mux.Unlock()
 
-	ch := shared.chans[winfo.fname]
-	if ch == nil {
-		return
-	}
-
-	fname := winfo.fname
-	if winfo.isCreate() {
-		// Watch for new files to be created in the parent directory.
-		fname = filepath.Dir(fname)
-	}
-
-	shared.watchNums[fname]--
-	if shared.watchNums[fname] == 0 {
-		delete(shared.watchNums, fname)
-		// TODO: handle error
+	if ch := shared.chans[fname]; ch != nil {
 		shared.watcher.Remove(fname)
-	}
 
-	delete(shared.chans, winfo.fname)
-	close(ch)
-
-	if !winfo.isCreate() {
-		return
-	}
-
-	shared.watchNums[winfo.fname]--
-	if shared.watchNums[winfo.fname] == 0 {
-		delete(shared.watchNums, winfo.fname)
+		delete(shared.chans, fname)
+		close(ch)
 	}
 }
 
 // sendEvent sends the input event to the appropriate Tail.
 func (shared *InotifyTracker) sendEvent(event fsnotify.Event) {
-	name := filepath.Clean(event.Name)
-
 	shared.mux.Lock()
-	ch := shared.chans[name]
-	done := shared.done[name]
+	ch := shared.chans[event.Name]
+	done := shared.done[event.Name]
 	shared.mux.Unlock()
 
 	if ch != nil && done != nil {
@@ -229,10 +144,10 @@ func (shared *InotifyTracker) run() {
 	for {
 		select {
 		case winfo := <-shared.watch:
-			shared.error <- shared.addWatch(winfo)
+			shared.error <- shared.addWatch(winfo.fname)
 
-		case winfo := <-shared.remove:
-			shared.removeWatch(winfo)
+		case fname := <-shared.remove:
+			shared.removeWatch(fname)
 
 		case event, open := <-shared.watcher.Events:
 			if !open {
