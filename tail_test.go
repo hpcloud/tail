@@ -155,7 +155,7 @@ func TestLocationEnd(_t *testing.T) {
 
 func TestLocationMiddle(_t *testing.T) {
 	// Test reading from middle.
-	t := NewTailTest("location-end", _t)
+	t := NewTailTest("location-middle", _t)
 	t.CreateFile("test.txt", "hello\nworld\n")
 	tail := t.StartTail("test.txt", Config{Follow: true, Location: &SeekInfo{-6, os.SEEK_END}})
 	go t.VerifyTailOutput(tail, []string{"world", "more", "data"})
@@ -328,6 +328,28 @@ func TestTell(_t *testing.T) {
 	}
 	t.RemoveFile("test.txt")
 	tail.Done()
+	tail.Cleanup()
+}
+
+func TestBlockUntilExists(_t *testing.T) {
+	t := NewTailTest("block-until-file-exists", _t)
+	config := Config{
+		Follow: true,
+	}
+	tail := t.StartTail("test.txt", config)
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		t.CreateFile("test.txt", "hello world\n")
+	}()
+	for l := range tail.Lines {
+		if l.Text != "hello world" {
+			t.Fatalf("mismatch; expected hello world, but got %s",
+				l.Text)
+		}
+		break
+	}
+	t.RemoveFile("test.txt")
+	tail.Stop()
 	tail.Cleanup()
 }
 

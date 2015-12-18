@@ -20,19 +20,16 @@ type InotifyFileWatcher struct {
 }
 
 func NewInotifyFileWatcher(filename string) *InotifyFileWatcher {
-	fw := &InotifyFileWatcher{filename, 0}
+	fw := &InotifyFileWatcher{filepath.Clean(filename), 0}
 	return fw
 }
 
 func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
-	dirname := filepath.Dir(fw.Filename)
-
-	// Watch for new files to be created in the parent directory.
-	err := Watch(dirname)
+	err := WatchCreate(fw.Filename)
 	if err != nil {
 		return err
 	}
-	defer RemoveWatch(dirname)
+	defer RemoveWatchCreate(fw.Filename)
 
 	// Do a real check now as the file might have been created before
 	// calling `WatchFlags` above.
@@ -48,7 +45,7 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 		case evt, ok := <-events:
 			if !ok {
 				return fmt.Errorf("inotify watcher has been closed")
-			} else if evt.Name == fw.Filename {
+			} else if filepath.Clean(evt.Name) == fw.Filename {
 				return nil
 			}
 		case <-t.Dying():
