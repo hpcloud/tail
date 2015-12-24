@@ -55,14 +55,13 @@ func (fw *InotifyFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 	panic("unreachable")
 }
 
-func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) *FileChanges {
-	changes := NewFileChanges()
-
+func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) (*FileChanges, error) {
 	err := Watch(fw.Filename)
 	if err != nil {
-		go changes.NotifyDeleted()
+		return nil, err
 	}
 
+	changes := NewFileChanges()
 	fw.Size = pos
 
 	go func() {
@@ -116,5 +115,5 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) *FileChanges
 		}
 	}()
 
-	return changes
+	return changes, nil
 }

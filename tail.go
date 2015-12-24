@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hpcloud/tail/ratelimiter"
@@ -82,6 +83,8 @@ type Tail struct {
 	changes *watch.FileChanges
 
 	tomb.Tomb // provides: Done, Kill, Dying
+
+	lk sync.Mutex
 }
 
 var (
@@ -140,7 +143,9 @@ func (tail *Tail) Tell() (offset int64, err error) {
 	}
 	offset, err = tail.file.Seek(0, os.SEEK_CUR)
 	if err == nil {
+		tail.lk.Lock()
 		offset -= int64(tail.reader.Buffered())
+		tail.lk.Unlock()
 	}
 	return
 }
@@ -187,7 +192,9 @@ func (tail *Tail) reopen() error {
 }
 
 func (tail *Tail) readLine() (string, error) {
+	tail.lk.Lock()
 	line, err := tail.reader.ReadString('\n')
+	tail.lk.Unlock()
 	if err != nil {
 		// Note ReadString "returns the data read before the error" in
 		// case of an error, including EOF, so we return it as is. The
@@ -315,7 +322,10 @@ func (tail *Tail) waitForChanges() error {
 		if err != nil {
 			return err
 		}
-		tail.changes = tail.watcher.ChangeEvents(&tail.Tomb, pos)
+		tail.changes, err = tail.watcher.ChangeEvents(&tail.Tomb, pos)
+		if err != nil {
+			return err
+		}
 	}
 
 	select {
