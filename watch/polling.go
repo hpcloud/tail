@@ -3,11 +3,12 @@
 package watch
 
 import (
-	"github.com/hpcloud/tail/util"
-	"gopkg.in/tomb.v1"
 	"os"
 	"runtime"
 	"time"
+
+	"github.com/hpcloud/tail/util"
+	"gopkg.in/tomb.v1"
 )
 
 // PollingFileWatcher polls the file for changes.
@@ -40,7 +41,12 @@ func (fw *PollingFileWatcher) BlockUntilExists(t *tomb.Tomb) error {
 	panic("unreachable")
 }
 
-func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) *FileChanges {
+func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) (*FileChanges, error) {
+	origFi, err := os.Stat(fw.Filename)
+	if err != nil {
+		return nil, err
+	}
+
 	changes := NewFileChanges()
 	var prevModTime time.Time
 
@@ -48,11 +54,6 @@ func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) *FileChanges
 	// the fatal (below) with tomb's Kill.
 
 	fw.Size = pos
-	origFi, err := os.Stat(fw.Filename)
-	if err != nil {
-		changes.NotifyDeleted()
-		return changes
-	}
 
 	go func() {
 		defer changes.Close()
@@ -110,7 +111,7 @@ func (fw *PollingFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) *FileChanges
 		}
 	}()
 
-	return changes
+	return changes, nil
 }
 
 func init() {

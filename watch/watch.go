@@ -15,5 +15,5 @@ type FileWatcher interface {
 	// or truncation event.
 	// In order to properly report truncations, ChangeEvents requires
 	// the caller to pass their current offset in the file.
-	ChangeEvents(*tomb.Tomb, int64) *FileChanges
+	ChangeEvents(*tomb.Tomb, int64) (*FileChanges, error)
 }
