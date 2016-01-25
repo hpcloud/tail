@@ -142,11 +142,17 @@ func (tail *Tail) Tell() (offset int64, err error) {
 		return
 	}
 	offset, err = tail.file.Seek(0, os.SEEK_CUR)
-	if err == nil {
-		tail.lk.Lock()
-		offset -= int64(tail.reader.Buffered())
-		tail.lk.Unlock()
+	if err != nil {
+		return
 	}
+
+	tail.lk.Lock()
+	defer tail.lk.Unlock()
+	if tail.reader == nil {
+		return
+	}
+
+	offset -= int64(tail.reader.Buffered())
 	return
 }
 
