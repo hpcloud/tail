@@ -107,8 +107,26 @@ func remove(winfo *watchInfo) {
 		delete(shared.done, winfo.fname)
 		close(done)
 	}
+
+	fname := winfo.fname
+	if winfo.isCreate() {
+		// Watch for new files to be created in the parent directory.
+		fname = filepath.Dir(fname)
+	}
+	shared.watchNums[fname]--
+	watchNum := shared.watchNums[fname]
+	if watchNum == 0 {
+		delete(shared.watchNums, fname)
+	}
 	shared.mux.Unlock()
 
+	// If we were the last ones to watch this file, unsubscribe from inotify.
+	// This needs to happen after releasing the lock because fsnotify waits
+	// synchronously for the kernel to acknowledge the removal of the watch
+	// for this file, which causes us to deadlock if we still held the lock.
+	if watchNum == 0 {
+		shared.watcher.Remove(fname)
+	}
 	shared.remove <- winfo
 }
 
@@ -172,19 +190,6 @@ func (shared *InotifyTracker) removeWatch(winfo *watchInfo) {
 	ch := shared.chans[winfo.fname]
 	if ch == nil {
 		return
-	}
-
-	fname := winfo.fname
-	if winfo.isCreate() {
-		// Watch for new files to be created in the parent directory.
-		fname = filepath.Dir(fname)
-	}
-
-	shared.watchNums[fname]--
-	if shared.watchNums[fname] == 0 {
-		delete(shared.watchNums, fname)
-		// TODO: handle error
-		shared.watcher.Remove(fname)
 	}
 
 	delete(shared.chans, winfo.fname)
