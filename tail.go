@@ -4,6 +4,7 @@ package tail
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -156,6 +157,14 @@ func (tail *Tail) Stop() error {
 	return tail.Wait()
 }
 
+// StopAtEOF stops tailing as soon as the end of the file is reached.
+func (tail *Tail) StopAtEOF() error {
+	tail.Kill(errStopAtEOF)
+	return tail.Wait()
+}
+
+var errStopAtEOF = errors.New("tail: stop at eof")
+
 func (tail *Tail) close() {
 	close(tail.Lines)
 	tail.colseFile()
@@ -236,6 +245,7 @@ func (tail *Tail) tailFileSync() {
 
 	var offset int64 = 0
 	var err error
+
 	// Read line by line.
 	for {
 		// do not seek in named pipes
@@ -265,8 +275,7 @@ func (tail *Tail) tailFileSync() {
 				case <-tail.Dying():
 					return
 				}
-				err = tail.seekEnd()
-				if err != nil {
+				if err := tail.seekEnd(); err != nil {
 					tail.Kill(err)
 					return
 				}
@@ -307,6 +316,9 @@ func (tail *Tail) tailFileSync() {
 
 		select {
 		case <-tail.Dying():
+			if tail.Err() == errStopAtEOF {
+				continue
+			}
 			return
 		default:
 		}

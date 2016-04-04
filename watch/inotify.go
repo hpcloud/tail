@@ -66,7 +66,6 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) (*FileChange
 
 	go func() {
 		defer RemoveWatch(fw.Filename)
-		defer changes.Close()
 
 		events := Events(fw.Filename)
 
