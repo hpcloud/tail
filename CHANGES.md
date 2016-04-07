@@ -1,5 +1,10 @@
 # API current (gopkg.in/ActiveState/tail)
 
+## April, 2016
+
+* Migrated to godep, as depman is not longer supported
+* Introduced golang vendoring feature
+
 ## July, 2015
 
 * Fix inotify watcher leak; remove `Cleanup` (#51)
