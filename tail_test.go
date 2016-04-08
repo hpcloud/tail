@@ -25,6 +25,13 @@ func init() {
 	}
 }
 
+func TestMain(m *testing.M) {
+	// Use a smaller poll duration for faster test runs. Keep it below
+	// 100ms (which value is used as common delays for tests)
+	watch.POLL_DURATION = 5 * time.Millisecond
+	os.Exit(m.Run())
+}
+
 func TestMustExist(t *testing.T) {
 	tail, err := TailFile("/no/such/file", Config{Follow: true, MustExist: true})
 	if err == nil {
@@ -386,10 +393,6 @@ func NewTailTest(name string, t *testing.T) TailTest {
 	if err != nil {
 		tt.Fatal(err)
 	}
-
-	// Use a smaller poll duration for faster test runs. Keep it below
-	// 100ms (which value is used as common delays for tests)
-	watch.POLL_DURATION = 5 * time.Millisecond
 
 	return tt
 }
