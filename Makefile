@@ -1,7 +1,7 @@
 default:	test
 
 test:	*.go
-	go test -v ./...
+	go test -v -race ./...
 
 fmt:
 	gofmt -w .
