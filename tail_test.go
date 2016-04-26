@@ -101,9 +101,11 @@ func TestStopAtEOF(t *testing.T) {
 	tail := tailTest.StartTail("test.txt", Config{Follow: true, Location: nil})
 
 	// read "hello"
-	<-tail.Lines
+	line := <-tail.Lines
+	if line.Text != "hello" {
+		t.Errorf("Expected to get 'hello', got '%s' instead", line)
+	}
 
-	<-time.After(100 * time.Millisecond)
 	tailTest.VerifyTailOutput(tail, []string{"there", "world"}, false)
 	tail.StopAtEOF()
 	tailTest.Cleanup(tail, true)
