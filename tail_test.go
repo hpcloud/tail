@@ -103,7 +103,7 @@ func TestStopAtEOF(t *testing.T) {
 	// read "hello"
 	line := <-tail.Lines
 	if line.Text != "hello" {
-		t.Errorf("Expected to get 'hello', got '%s' instead", line)
+		t.Errorf("Expected to get 'hello', got '%s' instead", line.Text)
 	}
 
 	tailTest.VerifyTailOutput(tail, []string{"there", "world"}, false)
