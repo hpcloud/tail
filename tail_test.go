@@ -53,7 +53,7 @@ func TestMustExist(t *testing.T) {
 func TestWaitsForFileToExist(t *testing.T) {
 	tailTest := NewTailTest("waits-for-file-to-exist", t)
 	tail := tailTest.StartTail("test.txt", Config{})
-	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"})
+	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"}, false)
 
 	<-time.After(100 * time.Millisecond)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
@@ -75,7 +75,7 @@ func TestWaitsForFileToExistRelativePath(t *testing.T) {
 		tailTest.Fatal(err)
 	}
 
-	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"})
+	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"}, false)
 
 	<-time.After(100 * time.Millisecond)
 	if err := ioutil.WriteFile("test.txt", []byte("hello\nworld\n"), 0600); err != nil {
@@ -104,31 +104,18 @@ func TestStopAtEOF(t *testing.T) {
 	<-tail.Lines
 
 	<-time.After(100 * time.Millisecond)
-	tailTest.VerifyTailOutput(tail, []string{"there", "world"})
+	tailTest.VerifyTailOutput(tail, []string{"there", "world"}, false)
 	tail.StopAtEOF()
-	tailTest.Cleanup(tail, true)
-}
-
-func MaxLineSizeT(t *testing.T, follow bool, fileContent string, expected []string) {
-	tailTest := NewTailTest("maxlinesize", t)
-	tailTest.CreateFile("test.txt", fileContent)
-	tail := tailTest.StartTail("test.txt", Config{Follow: follow, Location: nil, MaxLineSize: 3})
-	go tailTest.VerifyTailOutput(tail, expected)
-
-	// Delete after a reasonable delay, to give tail sufficient time
-	// to read all lines.
-	<-time.After(100 * time.Millisecond)
-	tailTest.RemoveFile("test.txt")
 	tailTest.Cleanup(tail, true)
 }
 
 func TestMaxLineSizeFollow(t *testing.T) {
 	// As last file line does not end with newline, it will not be present in tail's output
-	MaxLineSizeT(t, true, "hello\nworld\nfin\nhe", []string{"hel", "lo", "wor", "ld", "fin"})
+	maxLineSize(t, true, "hello\nworld\nfin\nhe", []string{"hel", "lo", "wor", "ld", "fin"})
 }
 
 func TestMaxLineSizeNoFollow(t *testing.T) {
-	MaxLineSizeT(t, false, "hello\nworld\nfin\nhe", []string{"hel", "lo", "wor", "ld", "fin", "he"})
+	maxLineSize(t, false, "hello\nworld\nfin\nhe", []string{"hel", "lo", "wor", "ld", "fin", "he"})
 }
 
 func TestOver4096ByteLine(t *testing.T) {
@@ -136,7 +123,7 @@ func TestOver4096ByteLine(t *testing.T) {
 	testString := strings.Repeat("a", 4097)
 	tailTest.CreateFile("test.txt", "test\n"+testString+"\nhello\nworld\n")
 	tail := tailTest.StartTail("test.txt", Config{Follow: true, Location: nil})
-	go tailTest.VerifyTailOutput(tail, []string{"test", testString, "hello", "world"})
+	go tailTest.VerifyTailOutput(tail, []string{"test", testString, "hello", "world"}, false)
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
@@ -149,7 +136,7 @@ func TestOver4096ByteLineWithSetMaxLineSize(t *testing.T) {
 	testString := strings.Repeat("a", 4097)
 	tailTest.CreateFile("test.txt", "test\n"+testString+"\nhello\nworld\n")
 	tail := tailTest.StartTail("test.txt", Config{Follow: true, Location: nil, MaxLineSize: 4097})
-	go tailTest.VerifyTailOutput(tail, []string{"test", testString, "hello", "world"})
+	go tailTest.VerifyTailOutput(tail, []string{"test", testString, "hello", "world"}, false)
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
@@ -162,7 +149,7 @@ func TestLocationFull(t *testing.T) {
 	tailTest := NewTailTest("location-full", t)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
 	tail := tailTest.StartTail("test.txt", Config{Follow: true, Location: nil})
-	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"})
+	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"}, false)
 
 	// Delete after a reasonable delay, to give tail sufficient time
 	// to read all lines.
@@ -175,7 +162,7 @@ func TestLocationFullDontFollow(t *testing.T) {
 	tailTest := NewTailTest("location-full-dontfollow", t)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
 	tail := tailTest.StartTail("test.txt", Config{Follow: false, Location: nil})
-	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"})
+	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"}, false)
 
 	// Add more data only after reasonable delay.
 	<-time.After(100 * time.Millisecond)
@@ -189,7 +176,7 @@ func TestLocationEnd(t *testing.T) {
 	tailTest := NewTailTest("location-end", t)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
 	tail := tailTest.StartTail("test.txt", Config{Follow: true, Location: &SeekInfo{0, os.SEEK_END}})
-	go tailTest.VerifyTailOutput(tail, []string{"more", "data"})
+	go tailTest.VerifyTailOutput(tail, []string{"more", "data"}, false)
 
 	<-time.After(100 * time.Millisecond)
 	tailTest.AppendFile("test.txt", "more\ndata\n")
@@ -206,7 +193,7 @@ func TestLocationMiddle(t *testing.T) {
 	tailTest := NewTailTest("location-middle", t)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
 	tail := tailTest.StartTail("test.txt", Config{Follow: true, Location: &SeekInfo{-6, os.SEEK_END}})
-	go tailTest.VerifyTailOutput(tail, []string{"world", "more", "data"})
+	go tailTest.VerifyTailOutput(tail, []string{"world", "more", "data"}, false)
 
 	<-time.After(100 * time.Millisecond)
 	tailTest.AppendFile("test.txt", "more\ndata\n")
@@ -218,48 +205,6 @@ func TestLocationMiddle(t *testing.T) {
 	tailTest.Cleanup(tail, true)
 }
 
-func reOpen(t *testing.T, poll bool) {
-	var name string
-	var delay time.Duration
-	if poll {
-		name = "reopen-polling"
-		delay = 300 * time.Millisecond // account for POLL_DURATION
-	} else {
-		name = "reopen-inotify"
-		delay = 100 * time.Millisecond
-	}
-	tailTest := NewTailTest(name, t)
-	tailTest.CreateFile("test.txt", "hello\nworld\n")
-	tail := tailTest.StartTail(
-		"test.txt",
-		Config{Follow: true, ReOpen: true, Poll: poll})
-
-	go tailTest.VerifyTailOutput(tail, []string{"hello", "world", "more", "data", "endofworld"})
-
-	// deletion must trigger reopen
-	<-time.After(delay)
-	tailTest.RemoveFile("test.txt")
-	<-time.After(delay)
-	tailTest.CreateFile("test.txt", "more\ndata\n")
-
-	// rename must trigger reopen
-	<-time.After(delay)
-	tailTest.RenameFile("test.txt", "test.txt.rotated")
-	<-time.After(delay)
-	tailTest.CreateFile("test.txt", "endofworld\n")
-
-	// Delete after a reasonable delay, to give tail sufficient time
-	// to read all lines.
-	<-time.After(delay)
-	tailTest.RemoveFile("test.txt")
-	<-time.After(delay)
-
-	// Do not bother with stopping as it could kill the tomb during
-	// the reading of data written above. Timings can vary based on
-	// test environment.
-	tailTest.Cleanup(tail, false)
-}
-
 // The use of polling file watcher could affect file rotation
 // (detected via renames), so test these explicitly.
 
@@ -269,37 +214,6 @@ func TestReOpenInotify(t *testing.T) {
 
 func TestReOpenPolling(t *testing.T) {
 	reOpen(t, true)
-}
-
-func reSeek(t *testing.T, poll bool) {
-	var name string
-	if poll {
-		name = "reseek-polling"
-	} else {
-		name = "reseek-inotify"
-	}
-	tailTest := NewTailTest(name, t)
-	tailTest.CreateFile("test.txt", "a really long string goes here\nhello\nworld\n")
-	tail := tailTest.StartTail(
-		"test.txt",
-		Config{Follow: true, ReOpen: false, Poll: poll})
-
-	go tailTest.VerifyTailOutput(tail, []string{
-		"a really long string goes here", "hello", "world", "h311o", "w0r1d", "endofworld"})
-
-	// truncate now
-	<-time.After(100 * time.Millisecond)
-	tailTest.TruncateFile("test.txt", "h311o\nw0r1d\nendofworld\n")
-
-	// Delete after a reasonable delay, to give tail sufficient time
-	// to read all lines.
-	<-time.After(100 * time.Millisecond)
-	tailTest.RemoveFile("test.txt")
-
-	// Do not bother with stopping as it could kill the tomb during
-	// the reading of data written above. Timings can vary based on
-	// test environment.
-	tailTest.Cleanup(tail, false)
 }
 
 // The use of polling file watcher could affect file rotation
@@ -327,7 +241,7 @@ func TestRateLimiting(t *testing.T) {
 		"hello", "world", "again",
 		leakybucketFull,
 		"more", "data",
-		leakybucketFull})
+		leakybucketFull}, false)
 
 	// Add more data only after reasonable delay.
 	<-time.After(1200 * time.Millisecond)
@@ -395,6 +309,92 @@ func TestBlockUntilExists(t *testing.T) {
 	tailTest.RemoveFile("test.txt")
 	tail.Stop()
 	tail.Cleanup()
+}
+
+func maxLineSize(t *testing.T, follow bool, fileContent string, expected []string) {
+	tailTest := NewTailTest("maxlinesize", t)
+	tailTest.CreateFile("test.txt", fileContent)
+	tail := tailTest.StartTail("test.txt", Config{Follow: follow, Location: nil, MaxLineSize: 3})
+	go tailTest.VerifyTailOutput(tail, expected, false)
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(100 * time.Millisecond)
+	tailTest.RemoveFile("test.txt")
+	tailTest.Cleanup(tail, true)
+}
+
+func reOpen(t *testing.T, poll bool) {
+	var name string
+	var delay time.Duration
+	if poll {
+		name = "reopen-polling"
+		delay = 300 * time.Millisecond // account for POLL_DURATION
+	} else {
+		name = "reopen-inotify"
+		delay = 100 * time.Millisecond
+	}
+	tailTest := NewTailTest(name, t)
+	tailTest.CreateFile("test.txt", "hello\nworld\n")
+	tail := tailTest.StartTail(
+		"test.txt",
+		Config{Follow: true, ReOpen: true, Poll: poll})
+	content := []string{"hello", "world", "more", "data", "endofworld"}
+	go tailTest.ReadLines(tail, content)
+
+	// deletion must trigger reopen
+	<-time.After(delay)
+	tailTest.RemoveFile("test.txt")
+	<-time.After(delay)
+	tailTest.CreateFile("test.txt", "more\ndata\n")
+
+	// rename must trigger reopen
+	<-time.After(delay)
+	tailTest.RenameFile("test.txt", "test.txt.rotated")
+	<-time.After(delay)
+	tailTest.CreateFile("test.txt", "endofworld\n")
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(delay)
+	tailTest.RemoveFile("test.txt")
+	<-time.After(delay)
+
+	// Do not bother with stopping as it could kill the tomb during
+	// the reading of data written above. Timings can vary based on
+	// test environment.
+	tail.Cleanup()
+}
+
+func reSeek(t *testing.T, poll bool) {
+	var name string
+	if poll {
+		name = "reseek-polling"
+	} else {
+		name = "reseek-inotify"
+	}
+	tailTest := NewTailTest(name, t)
+	tailTest.CreateFile("test.txt", "a really long string goes here\nhello\nworld\n")
+	tail := tailTest.StartTail(
+		"test.txt",
+		Config{Follow: true, ReOpen: false, Poll: poll})
+
+	go tailTest.VerifyTailOutput(tail, []string{
+		"a really long string goes here", "hello", "world", "h311o", "w0r1d", "endofworld"}, false)
+
+	// truncate now
+	<-time.After(100 * time.Millisecond)
+	tailTest.TruncateFile("test.txt", "h311o\nw0r1d\nendofworld\n")
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(100 * time.Millisecond)
+	tailTest.RemoveFile("test.txt")
+
+	// Do not bother with stopping as it could kill the tomb during
+	// the reading of data written above. Timings can vary based on
+	// test environment.
+	tailTest.Cleanup(tail, false)
 }
 
 // Test library
@@ -471,8 +471,20 @@ func (t TailTest) StartTail(name string, config Config) *Tail {
 	return tail
 }
 
-func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
+func (t TailTest) VerifyTailOutput(tail *Tail, lines []string, expectEOF bool) {
 	defer close(t.done)
+	t.ReadLines(tail, lines)
+	// It is important to do this if only EOF is expected
+	// otherwise we could block on <-tail.Lines
+	if expectEOF {
+		line, ok := <-tail.Lines
+		if ok {
+			t.Fatalf("more content from tail: %+v", line)
+		}
+	}
+}
+
+func (t TailTest) ReadLines(tail *Tail, lines []string) {
 	for idx, line := range lines {
 		tailedLine, ok := <-tail.Lines
 		if !ok {
@@ -494,15 +506,6 @@ func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
 					"expecting <<%s>>>, but got <<<%s>>>",
 				line, tailedLine.Text)
 		}
-	}
-	// It is important to return if follow is set
-	// otherwise we could block on <-tail.Lines
-	if tail.Follow {
-		return
-	}
-	line, ok := <-tail.Lines
-	if ok {
-		t.Fatalf("more content from tail: %+v", line)
 	}
 }
 
