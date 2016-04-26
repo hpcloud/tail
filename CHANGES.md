@@ -1,15 +1,16 @@
-# API current (gopkg.in/ActiveState/tail)
+# API v1 (gopkg.in/hpcloud/tail.v1)
 
 ## April, 2016
 
 * Migrated to godep, as depman is not longer supported
 * Introduced golang vendoring feature
+* Fixed issue [#57](https://github.com/hpcloud/tail/issues/57) related to reopen deleted file 
 
 ## July, 2015
 
 * Fix inotify watcher leak; remove `Cleanup` (#51)
 
-# API v0 (gopkg.in/ActiveState/tail.v0)
+# API v0 (gopkg.in/hpcloud/tail.v0)
 
 ## June, 2015
 
