@@ -507,10 +507,9 @@ func (t TailTest) VerifyTailOutput(tail *Tail, lines []string) {
 }
 
 func (t TailTest) Cleanup(tail *Tail, stop bool) {
-	<-time.After(100 * time.Millisecond)
+	<-t.done
 	if stop {
 		tail.Stop()
 	}
 	tail.Cleanup()
-	<-t.done
 }
