@@ -1,0 +1,10 @@
+version: 0.{build}
+skip_tags: true
+cache: C:\Users\appveyor\AppData\Local\NuGet\Cache
+build_script:
+- go test -v -race ./...
+test: off
+clone_folder: c:\tail
+branches:
+  only:
+  - master
