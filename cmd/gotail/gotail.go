@@ -1,3 +1,4 @@
+// Copyright (c) 2015 HPE Software Inc. All rights reserved.
 // Copyright (c) 2013 ActiveState Software Inc. All rights reserved.
 
 package main
@@ -5,8 +6,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/hpcloud/tail"
 	"os"
+
+	"github.com/hpcloud/tail"
 )
 
 func args2config() (tail.Config, int64) {

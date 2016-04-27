@@ -1,3 +1,4 @@
+// Copyright (c) 2015 HPE Software Inc. All rights reserved.
 // Copyright (c) 2013 ActiveState Software Inc. All rights reserved.
 
 package util
@@ -17,7 +18,7 @@ var LOGGER = &Logger{log.New(os.Stderr, "", log.LstdFlags)}
 
 // fatal is like panic except it displays only the current goroutine's stack.
 func Fatal(format string, v ...interface{}) {
-	// https://github.com/ActiveState/log/blob/master/log.go#L45
+	// https://github.com/hpcloud/log/blob/master/log.go#L45
 	LOGGER.Output(2, fmt.Sprintf("FATAL -- "+format, v...)+"\n"+string(debug.Stack()))
 	os.Exit(1)
 }
