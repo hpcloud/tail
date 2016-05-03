@@ -5,16 +5,19 @@ import (
 	"time"
 )
 
-const GC_SIZE int = 100
+const (
+	GC_SIZE int = 100
+	GC_RATE     = 60 * time.Second
+)
 
 type Memory struct {
-	store           map[string]LeakyBucket
+	store           map[string]*LeakyBucket
 	lastGCCollected time.Time
 }
 
 func NewMemory() *Memory {
 	m := new(Memory)
-	m.store = make(map[string]LeakyBucket)
+	m.store = make(map[string]*LeakyBucket)
 	m.lastGCCollected = time.Now()
 	return m
 }
@@ -26,10 +29,10 @@ func (m *Memory) GetBucketFor(key string) (*LeakyBucket, error) {
 		return nil, errors.New("miss")
 	}
 
-	return &bucket, nil
+	return bucket, nil
 }
 
-func (m *Memory) SetBucketFor(key string, bucket LeakyBucket) error {
+func (m *Memory) SetBucketFor(key string, bucket *LeakyBucket) error {
 
 	if len(m.store) > GC_SIZE {
 		m.GarbageCollect()
