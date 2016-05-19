@@ -292,6 +292,27 @@ func TestTell(t *testing.T) {
 	tail.Cleanup()
 }
 
+func TestFileStat(t *testing.T) {
+	tailTest := NewTailTest("tell-position", t)
+	tailTest.CreateFile("test.txt", "hello\nworld\nagain\nmore\n")
+	config := Config{
+		Follow:    false,
+		MustExist: true,
+		Location:  &SeekInfo{0, os.SEEK_SET}}
+	tail := tailTest.StartTail("test.txt", config)
+	tail.reopen()
+	stat, err := tail.FileStat()
+	if err != nil {
+		tailTest.Errorf("FileStat return error: %s", err.Error())
+	}
+	if size := stat.Size(); size != 23 {
+		tailTest.Fatalf("mismatch; expected 23, but got %d", size)
+	}
+	tailTest.RemoveFile("test.txt")
+	tail.Done()
+	tail.Cleanup()
+}
+
 func TestBlockUntilExists(t *testing.T) {
 	tailTest := NewTailTest("block-until-file-exists", t)
 	config := Config{
