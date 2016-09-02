@@ -83,21 +83,21 @@ func watch(winfo *watchInfo) error {
 }
 
 // RemoveWatch signals the run goroutine to remove the watch for the input filename
-func RemoveWatch(fname string) {
-	remove(&watchInfo{
+func RemoveWatch(fname string) error {
+	return remove(&watchInfo{
 		fname: fname,
 	})
 }
 
 // RemoveWatch create signals the run goroutine to remove the watch for the input filename
-func RemoveWatchCreate(fname string) {
-	remove(&watchInfo{
+func RemoveWatchCreate(fname string) error {
+	return remove(&watchInfo{
 		op:    fsnotify.Create,
 		fname: fname,
 	})
 }
 
-func remove(winfo *watchInfo) {
+func remove(winfo *watchInfo) error {
 	// start running the shared InotifyTracker if not already running
 	once.Do(goRun)
 
@@ -126,9 +126,10 @@ func remove(winfo *watchInfo) {
 	// synchronously for the kernel to acknowledge the removal of the watch
 	// for this file, which causes us to deadlock if we still held the lock.
 	if watchNum == 0 {
-		shared.watcher.Remove(fname)
+		return shared.watcher.Remove(fname)
 	}
 	shared.remove <- winfo
+	return nil
 }
 
 // Events returns a channel to which FileEvents corresponding to the input filename
@@ -142,8 +143,8 @@ func Events(fname string) <-chan fsnotify.Event {
 }
 
 // Cleanup removes the watch for the input filename if necessary.
-func Cleanup(fname string) {
-	RemoveWatch(fname)
+func Cleanup(fname string) error {
+	return RemoveWatch(fname)
 }
 
 // watchFlags calls fsnotify.WatchFlags for the input filename and flags, creating
