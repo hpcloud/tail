@@ -318,11 +318,10 @@ func (tail *Tail) SeekLine(lines int64, whence int) (int64, error) {
 	}
 
 	if err == io.EOF {
-		position, _ = tail.file.Seek(0, io.SeekEnd)
+		position, err = tail.file.Seek(0, io.SeekEnd)
 	} else if err == BOF {
-		position, _ = tail.file.Seek(0, io.SeekStart)
+		position, err = tail.file.Seek(0, io.SeekStart)
 	}
-
 	return position, err
 }
 
