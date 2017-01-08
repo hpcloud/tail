@@ -58,12 +58,13 @@ type logger interface {
 // Config is used to specify how a file must be tailed.
 type Config struct {
 	// File-specifc
-	Location    *SeekInfo // Seek to this location before tailing
-	ReOpen      bool      // Reopen recreated files (tail -F)
-	MustExist   bool      // Fail early if the file does not exist
-	Poll        bool      // Poll for file changes instead of using inotify
-	Pipe        bool      // Is a named pipe (mkfifo)
-	RateLimiter *ratelimiter.LeakyBucket
+	Location     *SeekInfo // Seek to this location before tailing
+	LineLocation *SeekInfo // Seek to this line number before tailing
+	ReOpen       bool      // Reopen recreated files (tail -F)
+	MustExist    bool      // Fail early if the file does not exist
+	Poll         bool      // Poll for file changes instead of using inotify
+	Pipe         bool      // Is a named pipe (mkfifo)
+	RateLimiter  *ratelimiter.LeakyBucket
 
 	// Generic IO
 	Follow      bool // Continue looking for new lines (tail -f)
@@ -104,6 +105,10 @@ var (
 func TailFile(filename string, config Config) (*Tail, error) {
 	if config.ReOpen && !config.Follow {
 		util.Fatal("cannot set ReOpen without Follow.")
+	}
+
+	if config.Location != nil && config.LineLocation != nil {
+		util.Fatal("Location and LineLocation cannot be set at the same time")
 	}
 
 	t := &Tail{
@@ -340,6 +345,13 @@ func (tail *Tail) tailFileSync() {
 	if tail.Location != nil {
 		_, err := tail.file.Seek(tail.Location.Offset, tail.Location.Whence)
 		tail.Logger.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
+		if err != nil {
+			tail.Killf("Seek error on %s: %s", tail.Filename, err)
+			return
+		}
+	} else if tail.LineLocation != nil {
+		_, err := tail.SeekLine(tail.LineLocation.Offset, tail.LineLocation.Whence)
+		tail.Logger.Printf("Seeked Line %s - %+v\n", tail.Filename, tail.LineLocation)
 		if err != nil {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
 			return
