@@ -14,11 +14,11 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"math"
 
 	"github.com/hpcloud/tail/ratelimiter"
 	"github.com/hpcloud/tail/util"
 	"github.com/hpcloud/tail/watch"
+	"github.com/stoicperlman/fls"
 	"gopkg.in/tomb.v1"
 )
 
@@ -229,102 +229,6 @@ func (tail *Tail) readLine() (string, error) {
 	return line, err
 }
 
-const BufferLength = 32 * 1024
-
-// seeks through file by line
-// 0 lines, 1 whence will return begining of current line
-// 1 lines, 1 whence will return begining of next line
-// 0 lines, 2 whence will return begining of last line
-// negative lines will move backwards in file
-func (tail *Tail) SeekLine(lines int64, whence int) (int64, error) {
-	BOF := errors.New("Begining of file")
-
-	// return error on bad whence
-	if whence < 0 || whence > 2 {
-		return tail.file.Seek(0, whence)
-	}
-
-	position, err := tail.file.Seek(0, whence)
-
-	buf := make([]byte, BufferLength)
-	bufLen := 0
-	lineSep := byte('\n')
-	seekBack := lines < 1
-	lines = int64(math.Abs(float64(lines)))
-	matchCount := int64(0)
-
-	// seekBack ignores first match
-	// allows 0 to go to begining of current line
-	if seekBack {
-		matchCount = -1
-	}
-
-	leftPosition := position
-	offset := int64(BufferLength * -1)
-
-	for b := 1; ; b++ {
-		if err != nil {
-			break
-		}
-
-		if seekBack {
-
-			// on seekBack 2nd buffer onward needs to seek
-			// past what was just read plus another buffer size
-			if b == 2 {
-				offset *= 2
-			}
-
-			// if next seekBack will pass beginning of file
-			// buffer is 0 to unread position
-			if position+int64(offset) <= 0 {
-				buf = make([]byte, leftPosition)
-				position, err = tail.file.Seek(0, io.SeekStart)
-				leftPosition = 0
-			} else {
-				position, err = tail.file.Seek(offset, io.SeekCurrent)
-				leftPosition = leftPosition - BufferLength
-			}
-		}
-		if err != nil {
-			break
-		}
-
-		bufLen, err = tail.file.Read(buf)
-		if err != nil {
-			break
-		} else if leftPosition == 0 {
-			err = BOF
-		}
-
-		for i := 0; i < bufLen; i++ {
-			iToCheck := i
-			if seekBack {
-				iToCheck = bufLen - i - 1
-			}
-			byteToCheck := buf[iToCheck]
-
-			if byteToCheck == lineSep {
-				matchCount++
-			}
-
-			if matchCount == lines {
-				if seekBack {
-					return tail.file.Seek(int64(i)*-1, io.SeekCurrent)
-				}
-				return tail.file.Seek(int64(bufLen*-1+i+1), io.SeekCurrent)
-			}
-		}
-	}
-
-	if err == io.EOF {
-		position, err = tail.file.Seek(0, io.SeekEnd)
-	} else if err == BOF {
-		position, err = tail.file.Seek(0, io.SeekStart)
-	}
-	return position, err
-}
-
 func (tail *Tail) tailFileSync() {
 	defer tail.Done()
 	defer tail.close()
@@ -349,7 +253,8 @@ func (tail *Tail) tailFileSync() {
 			return
 		}
 	} else if tail.LineLocation != nil {
-		_, err := tail.SeekLine(tail.LineLocation.Offset, tail.LineLocation.Whence)
+		lineFile := fls.LineFile(tail.file)
+		_, err := lineFile.SeekLine(tail.LineLocation.Offset, tail.LineLocation.Whence)
 		tail.Logger.Printf("Seeked Line %s - %+v\n", tail.Filename, tail.LineLocation)
 		if err != nil {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
