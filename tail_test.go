@@ -208,6 +208,66 @@ func TestLocationMiddle(t *testing.T) {
 	tailTest.Cleanup(tail, true)
 }
 
+func TestLineLocationFull(t *testing.T) {
+	tailTest := NewTailTest("location-full", t)
+	tailTest.CreateFile("test.txt", "hello\nworld\n")
+	tail := tailTest.StartTail("test.txt", Config{Follow: true, LineLocation: nil})
+	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"}, false)
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(100 * time.Millisecond)
+	tailTest.RemoveFile("test.txt")
+	tailTest.Cleanup(tail, true)
+}
+
+func TestLineLocationFullDontFollow(t *testing.T) {
+	tailTest := NewTailTest("location-full-dontfollow", t)
+	tailTest.CreateFile("test.txt", "hello\nworld\n")
+	tail := tailTest.StartTail("test.txt", Config{Follow: false, LineLocation: nil})
+	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"}, false)
+
+	// Add more data only after reasonable delay.
+	<-time.After(100 * time.Millisecond)
+	tailTest.AppendFile("test.txt", "more\ndata\n")
+	<-time.After(100 * time.Millisecond)
+
+	tailTest.Cleanup(tail, true)
+}
+
+func TestLineLocationEnd(t *testing.T) {
+	tailTest := NewTailTest("location-end", t)
+	tailTest.CreateFile("test.txt", "hello\nworld\n")
+	tail := tailTest.StartTail("test.txt", Config{Follow: true, LineLocation: &SeekInfo{0, os.SEEK_END}})
+	go tailTest.VerifyTailOutput(tail, []string{"more", "data"}, false)
+
+	<-time.After(100 * time.Millisecond)
+	tailTest.AppendFile("test.txt", "more\ndata\n")
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(100 * time.Millisecond)
+	tailTest.RemoveFile("test.txt")
+	tailTest.Cleanup(tail, true)
+}
+
+func TestLineLocationMiddle(t *testing.T) {
+	// Test reading from middle.
+	tailTest := NewTailTest("location-middle", t)
+	tailTest.CreateFile("test.txt", "hello\nworld\n")
+	tail := tailTest.StartTail("test.txt", Config{Follow: true, LineLocation: &SeekInfo{-1, os.SEEK_END}})
+	go tailTest.VerifyTailOutput(tail, []string{"world", "more", "data"}, false)
+
+	<-time.After(100 * time.Millisecond)
+	tailTest.AppendFile("test.txt", "more\ndata\n")
+
+	// Delete after a reasonable delay, to give tail sufficient time
+	// to read all lines.
+	<-time.After(100 * time.Millisecond)
+	tailTest.RemoveFile("test.txt")
+	tailTest.Cleanup(tail, true)
+}
+
 // The use of polling file watcher could affect file rotation
 // (detected via renames), so test these explicitly.
 
