@@ -75,6 +75,7 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) (*FileChange
 	fw.Size = pos
 
 	go func() {
+		defer RemoveWatch(fw.Filename)
 
 		events := Events(fw.Filename)
 
@@ -87,11 +88,9 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) (*FileChange
 			select {
 			case evt, ok = <-events:
 				if !ok {
-					RemoveWatch(fw.Filename)
 					return
 				}
 			case <-t.Dying():
-				RemoveWatch(fw.Filename)
 				return
 			}
 
@@ -109,7 +108,6 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) (*FileChange
 				fallthrough
 
 			case evt.Op&fsnotify.Rename == fsnotify.Rename:
-				RemoveWatch(fw.Filename)
 				changes.NotifyDeleted()
 				return
 
@@ -117,7 +115,6 @@ func (fw *InotifyFileWatcher) ChangeEvents(t *tomb.Tomb, pos int64) (*FileChange
 				fi, err := os.Stat(fw.Filename)
 				if err != nil {
 					if os.IsNotExist(err) {
-						RemoveWatch(fw.Filename)
 						changes.NotifyDeleted()
 						return
 					}
