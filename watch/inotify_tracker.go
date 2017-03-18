@@ -155,6 +155,8 @@ func (shared *InotifyTracker) addWatch(winfo *watchInfo) error {
 
 	if shared.chans[winfo.fname] == nil {
 		shared.chans[winfo.fname] = make(chan fsnotify.Event)
+	}
+	if shared.done[winfo.fname] == nil {
 		shared.done[winfo.fname] = make(chan bool)
 	}
 

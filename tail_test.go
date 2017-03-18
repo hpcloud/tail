@@ -343,7 +343,7 @@ func reOpen(t *testing.T, poll bool) {
 		"test.txt",
 		Config{Follow: true, ReOpen: true, Poll: poll})
 	content := []string{"hello", "world", "more", "data", "endofworld"}
-	go tailTest.ReadLines(tail, content)
+	go tailTest.VerifyTailOutput(tail, content, false)
 
 	// deletion must trigger reopen
 	<-time.After(delay)
@@ -366,7 +366,7 @@ func reOpen(t *testing.T, poll bool) {
 	// Do not bother with stopping as it could kill the tomb during
 	// the reading of data written above. Timings can vary based on
 	// test environment.
-	tail.Cleanup()
+	tailTest.Cleanup(tail, false)
 }
 
 func reSeek(t *testing.T, poll bool) {
