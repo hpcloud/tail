@@ -345,11 +345,19 @@ func reOpen(t *testing.T, poll bool) {
 	content := []string{"hello", "world", "more", "data", "endofworld"}
 	go tailTest.VerifyTailOutput(tail, content, false)
 
-	// deletion must trigger reopen
-	<-time.After(delay)
-	tailTest.RemoveFile("test.txt")
-	<-time.After(delay)
-	tailTest.CreateFile("test.txt", "more\ndata\n")
+	if poll {
+		// deletion must trigger reopen
+		<-time.After(delay)
+		tailTest.RemoveFile("test.txt")
+		<-time.After(delay)
+		tailTest.CreateFile("test.txt", "more\ndata\n")
+	} else {
+		// In inotify mode, fsnotify is currently unable to deliver notifications
+		// about deletion of open files, so we are not testing file deletion.
+		// (see https://github.com/fsnotify/fsnotify/issues/194 for details).
+		<-time.After(delay)
+		tailTest.AppendToFile("test.txt", "more\ndata\n")
+	}
 
 	// rename must trigger reopen
 	<-time.After(delay)
@@ -421,6 +429,13 @@ func NewTailTest(name string, t *testing.T) TailTest {
 
 func (t TailTest) CreateFile(name string, contents string) {
 	err := ioutil.WriteFile(t.path+"/"+name, []byte(contents), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (t TailTest) AppendToFile(name string, contents string) {
+	err := ioutil.WriteFile(t.path+"/"+name, []byte(contents), 0600|os.ModeAppend)
 	if err != nil {
 		t.Fatal(err)
 	}
