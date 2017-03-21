@@ -153,7 +153,9 @@ func (shared *InotifyTracker) addWatch(winfo *watchInfo) error {
 	if shared.watchNums[fname] == 0 {
 		err = shared.watcher.Add(fname)
 	}
-	shared.watchNums[fname]++
+	if err == nil {
+		shared.watchNums[fname]++
+	}
 	return err
 }
 
