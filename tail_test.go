@@ -377,6 +377,33 @@ func reOpen(t *testing.T, poll bool) {
 	tailTest.Cleanup(tail, false)
 }
 
+func TestInotify_WaitForCreateThenMove(t *testing.T) {
+	tailTest := NewTailTest("wait-for-create-then-reopen", t)
+	os.Remove(tailTest.path + "/test.txt") // Make sure the file does NOT exist.
+
+	tail := tailTest.StartTail(
+		"test.txt",
+		Config{Follow: true, ReOpen: true, Poll: false})
+
+	content := []string{"hello", "world", "endofworld"}
+	go tailTest.VerifyTailOutput(tail, content, false)
+
+	time.Sleep(50 * time.Millisecond)
+	tailTest.CreateFile("test.txt", "hello\nworld\n")
+	time.Sleep(50 * time.Millisecond)
+	tailTest.RenameFile("test.txt", "test.txt.rotated")
+	time.Sleep(50 * time.Millisecond)
+	tailTest.CreateFile("test.txt", "endofworld\n")
+	time.Sleep(50 * time.Millisecond)
+	tailTest.RemoveFile("test.txt.rotated")
+	tailTest.RemoveFile("test.txt")
+
+	// Do not bother with stopping as it could kill the tomb during
+	// the reading of data written above. Timings can vary based on
+	// test environment.
+	tailTest.Cleanup(tail, false)
+}
+
 func reSeek(t *testing.T, poll bool) {
 	var name string
 	if poll {
