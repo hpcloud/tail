@@ -380,12 +380,14 @@ func (tail *Tail) waitForChanges() error {
 }
 
 func (tail *Tail) openReader() {
+	tail.lk.Lock()
 	if tail.MaxLineSize > 0 {
 		// add 2 to account for newline characters
 		tail.reader = bufio.NewReaderSize(tail.file, tail.MaxLineSize+2)
 	} else {
 		tail.reader = bufio.NewReader(tail.file)
 	}
+	tail.lk.Unlock()
 }
 
 func (tail *Tail) seekEnd() error {
