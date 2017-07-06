@@ -7,7 +7,6 @@
 package tail
 
 import (
-	_ "fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -518,4 +517,187 @@ func (t TailTest) Cleanup(tail *Tail, stop bool) {
 		tail.Stop()
 	}
 	tail.Cleanup()
+}
+
+var testFile = `first line
+second line
+long third line third line third line third line third line 
+fourth line
+
+six line
+next first line
+next second line
+next third line
+next fourth line
+next fifth line
+next six line
+last first line
+next second line
+next first line
+next second line
+next third line
+n
+next fifth line
+
+next second line
+next third line
+next fourth line
+next fifth line
+next six line
+last second line
+long last third line third line third line third line third line 
+last third line
+last fourth line
+last fifth line`
+
+func TestLastLines(t *testing.T) {
+	tailTest := NewTailTest("ReadLast10Lines", t)
+	tailTest.CreateFile("test.txt", testFile)
+	config := Config{
+		Follow:    false,
+		MustExist: true,
+		LastLines: 3}
+
+	tail := tailTest.StartTail("test.txt", config)
+	expected := []string{"last third line", "last fourth line", "last fifth line"}
+	//    line := <-tail.Lines
+	//        for line := range tail.Lines {
+	//            fmt.Println(line.Text,1)
+	//            }
+	tailTest.VerifyTailOutput(tail, expected, false)
+}
+
+func TestLastLinesSmallPage(t *testing.T) {
+	tailTest := NewTailTest("TestLastLinesSmallPage", t)
+	tailTest.CreateFile("test.txt", testFile)
+	config := Config{
+		Follow:    false,
+		MustExist: true,
+		PageSize:  8,
+		LastLines: 3}
+
+	tail := tailTest.StartTail("test.txt", config)
+	expected := []string{"last third line", "last fourth line", "last fifth line"}
+	tailTest.VerifyTailOutput(tail, expected, false)
+}
+
+func TestLastLinesMore(t *testing.T) {
+	tailTest := NewTailTest("TestLastLinesMore", t)
+	tailTest.CreateFile("test.txt", testFile)
+	config := Config{
+		Follow:    false,
+		MustExist: true,
+		LastLines: 99}
+
+	tail := tailTest.StartTail("test.txt", config)
+	expected := strings.Split(testFile, "\n")
+	tailTest.VerifyTailOutput(tail, expected, false)
+}
+
+func TestLastLinesMoreSmallPage(t *testing.T) {
+	tailTest := NewTailTest("TestLastLinesMoreSmallPage", t)
+	tailTest.CreateFile("test.txt", testFile)
+	config := Config{
+		Follow:    false,
+		MustExist: true,
+		PageSize:  8,
+		LastLines: 99}
+
+	tail := tailTest.StartTail("test.txt", config)
+	expected := strings.Split(testFile, "\n")
+	tailTest.VerifyTailOutput(tail, expected, false)
+}
+
+func TestLastLinesLastNewLine(t *testing.T) {
+	tailTest := NewTailTest("TestLastLinesLastNewLine", t)
+	testFile = testFile + "\n"
+	tailTest.CreateFile("test.txt", testFile)
+	config := Config{
+		Follow:    false,
+		MustExist: true,
+		LastLines: 3}
+
+	tail := tailTest.StartTail("test.txt", config)
+	expected := []string{"last third line", "last fourth line", "last fifth line"}
+	tailTest.VerifyTailOutput(tail, expected, false)
+}
+
+func TestSkipFirstLines(t *testing.T) {
+	tailTest := NewTailTest("TestSkipFirstLines", t)
+	tailTest.CreateFile("test.txt", "one\ntwo\nthree\nfour\nfive\nsix\n\neight\n")
+	config := Config{
+		Follow:    false,
+		MustExist: true,
+		FromLine:  6}
+
+	tail := tailTest.StartTail("test.txt", config)
+	expected := []string{"six", "", "eight"}
+
+	tailTest.VerifyTailOutput(tail, expected, false)
+}
+
+func TestSkipFirstLinesMore(t *testing.T) {
+	tailTest := NewTailTest("TestSkipFirstLinesMore", t)
+	tailTest.CreateFile("test.txt", "one\ntwo\nthree\nfour\nfive\nsix\n\neight\n")
+	config := Config{
+		Follow:    false,
+		MustExist: true,
+		FromLine:  99}
+
+	tail := tailTest.StartTail("test.txt", config)
+	expected := []string{}
+
+	tailTest.VerifyTailOutput(tail, expected, false)
+}
+
+func TestSkipFirstLinesSmallPage(t *testing.T) {
+	tailTest := NewTailTest("TestSkipFirstLines", t)
+	tailTest.CreateFile("test.txt", "one\ntwo\nthree\nfour\nfive\nsix\n\neight\n")
+	config := Config{
+		Follow:    false,
+		MustExist: true,
+		PageSize:  8,
+		FromLine:  6}
+
+	tail := tailTest.StartTail("test.txt", config)
+	expected := []string{"six", "", "eight"}
+
+	tailTest.VerifyTailOutput(tail, expected, false)
+}
+
+func TestSkipFirstLinesEmpty(t *testing.T) {
+	tailTest := NewTailTest("TestSkipFirstLinesEmpty", t)
+	tailTest.CreateFile("test.txt", "")
+	config := Config{
+		Follow:    false,
+		MustExist: true,
+		FromLine:  9}
+
+	tail := tailTest.StartTail("test.txt", config)
+	expected := []string{}
+
+	tailTest.VerifyTailOutput(tail, expected, false)
+}
+
+func TestSkipFirstReOpen(t *testing.T) {
+	tailTest := NewTailTest("TestSkipFirstReOpen", t)
+	tailTest.CreateFile("test.txt", "one\ntwo\nthree\nfour\nfive\nsix\n\neight\n")
+	config := Config{
+		ReOpen:       true,
+		Follow:       true,
+		MustExist:    true,
+		Poll:         true,
+		SeekOnReOpen: true,
+		FromLine:     5}
+
+	tail := tailTest.StartTail("test.txt", config)
+	expected := []string{"five", "six", "", "eight"}
+
+	<-time.After(300 * time.Millisecond)
+	tailTest.ReadLines(tail, expected)
+
+	tailTest.RemoveFile("test.txt")
+	tailTest.CreateFile("test.txt", "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\n")
+	expected = []string{"five", "six", "seven", "eight", "nine"}
+	tailTest.VerifyTailOutput(tail, expected, false)
 }

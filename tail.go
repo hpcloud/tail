@@ -5,6 +5,7 @@ package tail
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -63,6 +64,11 @@ type Config struct {
 	Poll        bool      // Poll for file changes instead of using inotify
 	Pipe        bool      // Is a named pipe (mkfifo)
 	RateLimiter *ratelimiter.LeakyBucket
+
+	LastLines    int  // Output the last NUM lines (tail -n)
+	FromLine     int  // Output starting with line NUM (tail -n)
+	PageSize     int  // Buffer size for seek line. Default 4096
+	SeekOnReOpen bool // Start from line on reopen
 
 	// Generic IO
 	Follow      bool // Continue looking for new lines (tail -f)
@@ -133,6 +139,177 @@ func TailFile(filename string, config Config) (*Tail, error) {
 	go t.tailFileSync()
 
 	return t, nil
+}
+
+// Update tail.Config.Location corresponding to tail.Config.LastLines.
+// It goes with step defined in PageSize or 4096 by default
+// Or set to 0 if tail.Config.LastLines more that lines in file
+func (tail *Tail) readLast() {
+
+	count := 0
+	nLines := tail.Config.LastLines
+
+	seek := &SeekInfo{
+		Offset: 0,
+		Whence: io.SeekEnd,
+	}
+
+	pos, err := tail.file.Seek(seek.Offset, seek.Whence)
+
+	if err != nil {
+		fmt.Errorf("Seek error on %s: %s", tail.Filename, err)
+	}
+
+	pageSize := 4096
+	if tail.Config.PageSize != 0 {
+		pageSize = tail.Config.PageSize
+	}
+
+	// Skip сlosing \n if exist
+	b1 := make([]byte, 1)
+	tail.file.ReadAt(b1, pos-1)
+
+	if '\n' == b1[0] {
+		pos = pos - 1
+	}
+
+	for {
+		readFrom := pos - int64(pageSize)
+		lines := make([]int64, 0)
+
+		if readFrom <= 0 {
+			pageSize += int(readFrom)
+			readFrom = 0
+			lines = append(lines, 0)
+			count++
+		}
+
+		b := make([]byte, pageSize)
+
+		_, err := tail.file.ReadAt(b, readFrom)
+
+		if err != nil {
+			fmt.Errorf("Read error on %s: %s", tail.Filename, err)
+		}
+
+		i := 0
+
+		// Find newline symbols location in buffer and put it in to slice
+		for {
+			bufPos := bytes.IndexByte(b[i:], '\n')
+			if bufPos == -1 {
+				break
+			}
+			i = i + bufPos + 1
+
+			lines = append(lines, int64(i))
+			count++
+		}
+
+		var firstLinePos int64
+
+		// If no lines found in buf set firstLinePos to 0
+		// Its needed to handle lines bigger than PageSize
+		if len(lines) == 0 {
+			firstLinePos = 0
+		} else {
+			firstLinePos = lines[0]
+		}
+
+		if count == nLines {
+			tail.Config.Location = &SeekInfo{
+				Offset: firstLinePos + readFrom,
+				Whence: io.SeekStart}
+			return
+		}
+
+		if count > nLines {
+			linesLeft := count - nLines
+			targetPos := lines[linesLeft]
+			tail.Config.Location = &SeekInfo{
+				Offset: targetPos + readFrom,
+				Whence: io.SeekStart}
+			return
+		}
+
+		if readFrom == 0 {
+			tail.Config.Location = &SeekInfo{
+				Offset: 0,
+				Whence: io.SeekStart}
+			return
+		}
+		pos = firstLinePos + readFrom - 1
+	}
+}
+
+// Update tail.Config.Location corresponding to tail.Config.FromLine
+// Or set to end of the file if FromLine  more that lines in file
+// it goes with step defined in PageSize or 4096 by default
+func (tail *Tail) skipLines() {
+
+	fileStat, err := tail.file.Stat()
+	if err != nil {
+		fmt.Println(err)
+	}
+	fileSize := fileStat.Size()
+
+	count := 1
+	nLines := tail.Config.FromLine
+
+	pageSize := 4096
+	if tail.Config.PageSize != 0 {
+		pageSize = tail.Config.PageSize
+	}
+
+	// Skip сlosing \n if exist
+	b1 := make([]byte, 1)
+	tail.file.ReadAt(b1, fileSize-1)
+
+	if '\n' == b1[0] {
+		fileSize = fileSize - 1
+	}
+
+	var pos int64
+	pos = 0
+
+	for {
+
+		b := make([]byte, pageSize)
+
+		_, err := tail.file.ReadAt(b, pos)
+		if err != nil {
+			fmt.Errorf("Read error on %s: %s", tail.Filename, err)
+		}
+
+		i := 0
+
+		// Find newline symbols location in buffer and put it in to slice
+		for {
+			bufPos := bytes.IndexByte(b[i:], '\n')
+			if bufPos == -1 {
+				break
+			}
+
+			i = i + bufPos + 1
+
+			count++
+			if count == nLines {
+				tail.Config.Location = &SeekInfo{
+					Offset: int64(i) + pos,
+					Whence: io.SeekStart}
+				return
+			}
+		}
+
+		pos = pos + int64(pageSize)
+
+		if pos >= fileSize {
+			tail.Config.Location = &SeekInfo{
+				Offset: 0,
+				Whence: io.SeekEnd}
+			return
+		}
+	}
 }
 
 // Return the file's current position, like stdio's ftell().
@@ -223,6 +400,24 @@ func (tail *Tail) readLine() (string, error) {
 	return line, err
 }
 
+func (tail *Tail) findLine() {
+
+	if tail.Config.FromLine > 0 {
+		tail.skipLines()
+	} else if tail.Config.LastLines > 0 {
+		tail.readLast()
+	}
+	// Seek to requested location on first open of the file.
+	if tail.Location != nil {
+		_, err := tail.file.Seek(tail.Location.Offset, tail.Location.Whence)
+		tail.Logger.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
+		if err != nil {
+			tail.Killf("Seek error on %s: %s", tail.Filename, err)
+			return
+		}
+	}
+}
+
 func (tail *Tail) tailFileSync() {
 	defer tail.Done()
 	defer tail.close()
@@ -238,16 +433,7 @@ func (tail *Tail) tailFileSync() {
 		}
 	}
 
-	// Seek to requested location on first open of the file.
-	if tail.Location != nil {
-		_, err := tail.file.Seek(tail.Location.Offset, tail.Location.Whence)
-		tail.Logger.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
-		if err != nil {
-			tail.Killf("Seek error on %s: %s", tail.Filename, err)
-			return
-		}
-	}
-
+	tail.findLine()
 	tail.openReader()
 
 	var offset int64
@@ -358,6 +544,11 @@ func (tail *Tail) waitForChanges() error {
 				return err
 			}
 			tail.Logger.Printf("Successfully reopened %s", tail.Filename)
+
+			if tail.Config.SeekOnReOpen {
+				tail.findLine()
+			}
+
 			tail.openReader()
 			return nil
 		} else {
