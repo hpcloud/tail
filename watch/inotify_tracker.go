@@ -108,28 +108,10 @@ func remove(winfo *watchInfo) error {
 		delete(shared.done, winfo.fname)
 		close(done)
 	}
-
-	fname := winfo.fname
-	if winfo.isCreate() {
-		// Watch for new files to be created in the parent directory.
-		fname = filepath.Dir(fname)
-	}
-	shared.watchNums[fname]--
-	watchNum := shared.watchNums[fname]
-	if watchNum == 0 {
-		delete(shared.watchNums, fname)
-	}
 	shared.mux.Unlock()
 
-	// If we were the last ones to watch this file, unsubscribe from inotify.
-	// This needs to happen after releasing the lock because fsnotify waits
-	// synchronously for the kernel to acknowledge the removal of the watch
-	// for this file, which causes us to deadlock if we still held the lock.
-	if watchNum == 0 {
-		return shared.watcher.Remove(fname)
-	}
 	shared.remove <- winfo
-	return nil
+	return <-shared.error
 }
 
 // Events returns a channel to which FileEvents corresponding to the input filename
@@ -155,6 +137,8 @@ func (shared *InotifyTracker) addWatch(winfo *watchInfo) error {
 
 	if shared.chans[winfo.fname] == nil {
 		shared.chans[winfo.fname] = make(chan fsnotify.Event)
+	}
+	if shared.done[winfo.fname] == nil {
 		shared.done[winfo.fname] = make(chan bool)
 	}
 
@@ -164,47 +148,50 @@ func (shared *InotifyTracker) addWatch(winfo *watchInfo) error {
 		fname = filepath.Dir(fname)
 	}
 
+	var err error
 	// already in inotify watch
-	if shared.watchNums[fname] > 0 {
-		shared.watchNums[fname]++
-		if winfo.isCreate() {
-			shared.watchNums[winfo.fname]++
-		}
-		return nil
+	if shared.watchNums[fname] == 0 {
+		err = shared.watcher.Add(fname)
 	}
-
-	err := shared.watcher.Add(fname)
 	if err == nil {
 		shared.watchNums[fname]++
-		if winfo.isCreate() {
-			shared.watchNums[winfo.fname]++
-		}
 	}
 	return err
 }
 
 // removeWatch calls fsnotify.RemoveWatch for the input filename and closes the
 // corresponding events channel.
-func (shared *InotifyTracker) removeWatch(winfo *watchInfo) {
+func (shared *InotifyTracker) removeWatch(winfo *watchInfo) error {
 	shared.mux.Lock()
-	defer shared.mux.Unlock()
 
 	ch := shared.chans[winfo.fname]
-	if ch == nil {
-		return
+	if ch != nil {
+		delete(shared.chans, winfo.fname)
+		close(ch)
 	}
 
-	delete(shared.chans, winfo.fname)
-	close(ch)
+	fname := winfo.fname
+	if winfo.isCreate() {
+		// Watch for new files to be created in the parent directory.
+		fname = filepath.Dir(fname)
+	}
+	shared.watchNums[fname]--
+	watchNum := shared.watchNums[fname]
+	if watchNum == 0 {
+		delete(shared.watchNums, fname)
+	}
+	shared.mux.Unlock()
 
-	if !winfo.isCreate() {
-		return
+	var err error
+	// If we were the last ones to watch this file, unsubscribe from inotify.
+	// This needs to happen after releasing the lock because fsnotify waits
+	// synchronously for the kernel to acknowledge the removal of the watch
+	// for this file, which causes us to deadlock if we still held the lock.
+	if watchNum == 0 {
+		err = shared.watcher.Remove(fname)
 	}
 
-	shared.watchNums[winfo.fname]--
-	if shared.watchNums[winfo.fname] == 0 {
-		delete(shared.watchNums, winfo.fname)
-	}
+	return err
 }
 
 // sendEvent sends the input event to the appropriate Tail.
@@ -239,7 +226,7 @@ func (shared *InotifyTracker) run() {
 			shared.error <- shared.addWatch(winfo)
 
 		case winfo := <-shared.remove:
-			shared.removeWatch(winfo)
+			shared.error <- shared.removeWatch(winfo)
 
 		case event, open := <-shared.watcher.Events:
 			if !open {
