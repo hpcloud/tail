@@ -343,13 +343,21 @@ func reOpen(t *testing.T, poll bool) {
 		"test.txt",
 		Config{Follow: true, ReOpen: true, Poll: poll})
 	content := []string{"hello", "world", "more", "data", "endofworld"}
-	go tailTest.ReadLines(tail, content)
+	go tailTest.VerifyTailOutput(tail, content, false)
 
-	// deletion must trigger reopen
-	<-time.After(delay)
-	tailTest.RemoveFile("test.txt")
-	<-time.After(delay)
-	tailTest.CreateFile("test.txt", "more\ndata\n")
+	if poll {
+		// deletion must trigger reopen
+		<-time.After(delay)
+		tailTest.RemoveFile("test.txt")
+		<-time.After(delay)
+		tailTest.CreateFile("test.txt", "more\ndata\n")
+	} else {
+		// In inotify mode, fsnotify is currently unable to deliver notifications
+		// about deletion of open files, so we are not testing file deletion.
+		// (see https://github.com/fsnotify/fsnotify/issues/194 for details).
+		<-time.After(delay)
+		tailTest.AppendToFile("test.txt", "more\ndata\n")
+	}
 
 	// rename must trigger reopen
 	<-time.After(delay)
@@ -366,7 +374,34 @@ func reOpen(t *testing.T, poll bool) {
 	// Do not bother with stopping as it could kill the tomb during
 	// the reading of data written above. Timings can vary based on
 	// test environment.
-	tail.Cleanup()
+	tailTest.Cleanup(tail, false)
+}
+
+func TestInotify_WaitForCreateThenMove(t *testing.T) {
+	tailTest := NewTailTest("wait-for-create-then-reopen", t)
+	os.Remove(tailTest.path + "/test.txt") // Make sure the file does NOT exist.
+
+	tail := tailTest.StartTail(
+		"test.txt",
+		Config{Follow: true, ReOpen: true, Poll: false})
+
+	content := []string{"hello", "world", "endofworld"}
+	go tailTest.VerifyTailOutput(tail, content, false)
+
+	time.Sleep(50 * time.Millisecond)
+	tailTest.CreateFile("test.txt", "hello\nworld\n")
+	time.Sleep(50 * time.Millisecond)
+	tailTest.RenameFile("test.txt", "test.txt.rotated")
+	time.Sleep(50 * time.Millisecond)
+	tailTest.CreateFile("test.txt", "endofworld\n")
+	time.Sleep(50 * time.Millisecond)
+	tailTest.RemoveFile("test.txt.rotated")
+	tailTest.RemoveFile("test.txt")
+
+	// Do not bother with stopping as it could kill the tomb during
+	// the reading of data written above. Timings can vary based on
+	// test environment.
+	tailTest.Cleanup(tail, false)
 }
 
 func reSeek(t *testing.T, poll bool) {
@@ -421,6 +456,13 @@ func NewTailTest(name string, t *testing.T) TailTest {
 
 func (t TailTest) CreateFile(name string, contents string) {
 	err := ioutil.WriteFile(t.path+"/"+name, []byte(contents), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (t TailTest) AppendToFile(name string, contents string) {
+	err := ioutil.WriteFile(t.path+"/"+name, []byte(contents), 0600|os.ModeAppend)
 	if err != nil {
 		t.Fatal(err)
 	}
