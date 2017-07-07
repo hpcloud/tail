@@ -151,7 +151,7 @@ func (tail *Tail) readLast() {
 
 	seek := &SeekInfo{
 		Offset: 0,
-		Whence: io.SeekEnd,
+		Whence: 2, // io.SeekEnd
 	}
 
 	pos, err := tail.file.Seek(seek.Offset, seek.Whence)
@@ -219,7 +219,8 @@ func (tail *Tail) readLast() {
 		if count == nLines {
 			tail.Config.Location = &SeekInfo{
 				Offset: firstLinePos + readFrom,
-				Whence: io.SeekStart}
+				Whence: 0, // io.SeekStart
+			}
 			return
 		}
 
@@ -228,14 +229,16 @@ func (tail *Tail) readLast() {
 			targetPos := lines[linesLeft]
 			tail.Config.Location = &SeekInfo{
 				Offset: targetPos + readFrom,
-				Whence: io.SeekStart}
+				Whence: 0, // io.SeekStart
+			}
 			return
 		}
 
 		if readFrom == 0 {
 			tail.Config.Location = &SeekInfo{
 				Offset: 0,
-				Whence: io.SeekStart}
+				Whence: 0, // io.SeekStart
+			}
 			return
 		}
 		pos = firstLinePos + readFrom - 1
@@ -296,7 +299,8 @@ func (tail *Tail) skipLines() {
 			if count == nLines {
 				tail.Config.Location = &SeekInfo{
 					Offset: int64(i) + pos,
-					Whence: io.SeekStart}
+					Whence: 0, // io.SeekStart
+				}
 				return
 			}
 		}
@@ -306,7 +310,8 @@ func (tail *Tail) skipLines() {
 		if pos >= fileSize {
 			tail.Config.Location = &SeekInfo{
 				Offset: 0,
-				Whence: io.SeekEnd}
+				Whence: 2, // io.SeekEnd
+			}
 			return
 		}
 	}
