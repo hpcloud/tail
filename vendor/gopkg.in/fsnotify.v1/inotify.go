@@ -300,7 +300,13 @@ func newEvent(name string, mask uint32) Event {
 		e.Op |= Rename
 	}
 	if mask&syscall.IN_ATTRIB == syscall.IN_ATTRIB {
-		e.Op |= Chmod
+		_, statErr := os.Lstat(e.Name)
+		if os.IsNotExist(statErr) {
+			fmt.Printf("in attrib  Remove %#v\n\n", mask&syscall.IN_CREATE)
+			e.Op |= Remove
+		} else {
+			e.Op |= Chmod
+		}
 	}
 	return e
 }
