@@ -224,8 +224,10 @@ func (tail *Tail) readLine() (string, error) {
 }
 
 func (tail *Tail) tailFileSync() {
-	defer tail.Done()
-	defer tail.close()
+	defer func() {
+		tail.close()
+		tail.Done()
+	}()
 
 	if !tail.MustExist {
 		// deferred first open.
