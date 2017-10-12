@@ -7,6 +7,10 @@ A Go package striving to emulate the features of the BSD `tail` program.
 
 ```Go
 t, err := tail.TailFile("/var/log/nginx.log", tail.Config{Follow: true})
+if err != nil {
+    panic(err)
+}
+
 for line := range t.Lines {
     fmt.Println(line.Text)
 }
