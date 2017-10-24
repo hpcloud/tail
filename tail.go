@@ -275,8 +275,8 @@ func (tail *Tail) tailFileSync() {
 				// file when rate limit is reached.
 				msg := ("Too much log activity; waiting a second " +
 					"before resuming tailing")
-				tail.Lines <- &Line{msg, time.Now(), errors.New(msg)}
 				select {
+				case tail.Lines <- &Line{msg, time.Now(), errors.New(msg)}:
 				case <-time.After(time.Second):
 				case <-tail.Dying():
 					return
@@ -414,7 +414,11 @@ func (tail *Tail) sendLine(line string) bool {
 	}
 
 	for _, line := range lines {
-		tail.Lines <- &Line{line, now, nil}
+		select {
+		case tail.Lines <- &Line{line, now, nil}:
+		case <-tail.Dying():
+			return false
+		}
 	}
 
 	if tail.Config.RateLimiter != nil {
