@@ -137,8 +137,8 @@ func TailFile(filename string, config Config) (*Tail, error) {
 
 // Return the file's current position, like stdio's ftell().
 // But this value is not very accurate.
-// it may readed one line in the chan(tail.Lines),
-// so it may lost one line.
+// One line from the chan(tail.Lines) may have been read,
+// so it may have lost one line.
 func (tail *Tail) Tell() (offset int64, err error) {
 	if tail.file == nil {
 		return
