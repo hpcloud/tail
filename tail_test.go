@@ -209,7 +209,7 @@ func TestLocationMiddle(t *testing.T) {
 }
 
 func TestLineLocationFull(t *testing.T) {
-	tailTest := NewTailTest("location-full", t)
+	tailTest := NewTailTest("line-location-full", t)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
 	tail := tailTest.StartTail("test.txt", Config{Follow: true, LineLocation: nil})
 	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"}, false)
@@ -222,7 +222,7 @@ func TestLineLocationFull(t *testing.T) {
 }
 
 func TestLineLocationFullDontFollow(t *testing.T) {
-	tailTest := NewTailTest("location-full-dontfollow", t)
+	tailTest := NewTailTest("line-location-full-dontfollow", t)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
 	tail := tailTest.StartTail("test.txt", Config{Follow: false, LineLocation: nil})
 	go tailTest.VerifyTailOutput(tail, []string{"hello", "world"}, false)
@@ -236,7 +236,7 @@ func TestLineLocationFullDontFollow(t *testing.T) {
 }
 
 func TestLineLocationEnd(t *testing.T) {
-	tailTest := NewTailTest("location-end", t)
+	tailTest := NewTailTest("line-location-end", t)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
 	tail := tailTest.StartTail("test.txt", Config{Follow: true, LineLocation: &SeekInfo{0, os.SEEK_END}})
 	go tailTest.VerifyTailOutput(tail, []string{"more", "data"}, false)
@@ -253,7 +253,7 @@ func TestLineLocationEnd(t *testing.T) {
 
 func TestLineLocationMiddle(t *testing.T) {
 	// Test reading from middle.
-	tailTest := NewTailTest("location-middle", t)
+	tailTest := NewTailTest("line-location-middle", t)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
 	tail := tailTest.StartTail("test.txt", Config{Follow: true, LineLocation: &SeekInfo{-1, os.SEEK_END}})
 	go tailTest.VerifyTailOutput(tail, []string{"world", "more", "data"}, false)
