@@ -8,6 +8,7 @@ package tail
 
 import (
 	_ "fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -238,7 +239,7 @@ func TestLineLocationFullDontFollow(t *testing.T) {
 func TestLineLocationEnd(t *testing.T) {
 	tailTest := NewTailTest("line-location-end", t)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
-	tail := tailTest.StartTail("test.txt", Config{Follow: true, LineLocation: &SeekInfo{0, os.SEEK_END}})
+	tail := tailTest.StartTail("test.txt", Config{Follow: true, LineLocation: &SeekInfo{0, io.SeekEnd}})
 	go tailTest.VerifyTailOutput(tail, []string{"more", "data"}, false)
 
 	<-time.After(100 * time.Millisecond)
@@ -255,7 +256,7 @@ func TestLineLocationMiddle(t *testing.T) {
 	// Test reading from middle.
 	tailTest := NewTailTest("line-location-middle", t)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
-	tail := tailTest.StartTail("test.txt", Config{Follow: true, LineLocation: &SeekInfo{-1, os.SEEK_END}})
+	tail := tailTest.StartTail("test.txt", Config{Follow: true, LineLocation: &SeekInfo{-1, io.SeekEnd}})
 	go tailTest.VerifyTailOutput(tail, []string{"world", "more", "data"}, false)
 
 	<-time.After(100 * time.Millisecond)
