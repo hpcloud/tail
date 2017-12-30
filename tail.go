@@ -255,7 +255,6 @@ func (tail *Tail) tailFileSync() {
 	} else if tail.LineLocation != nil {
 		lineFile := fls.LineFile(tail.file)
 		_, err := lineFile.SeekLine(tail.LineLocation.Offset, tail.LineLocation.Whence)
-		tail.Logger.Printf("Seeked Line %s - %+v\n", tail.Filename, tail.LineLocation)
 		if err != nil {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
 			return
