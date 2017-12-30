@@ -37,7 +37,7 @@ func main() {
 	}
 
 	if n != 0 {
-		config.LineLocation = &tail.SeekInfo{-n + 1, io.SeekEnd}
+		config.LineLocation = &tail.SeekInfo{-n, io.SeekEnd}
 	}
 
 	done := make(chan bool)

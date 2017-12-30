@@ -254,7 +254,28 @@ func (tail *Tail) tailFileSync() {
 		}
 	} else if tail.LineLocation != nil {
 		lineFile := fls.LineFile(tail.file)
-		_, err := lineFile.SeekLine(tail.LineLocation.Offset, tail.LineLocation.Whence)
+		buf := make([]byte, 1)
+
+		_, err := lineFile.Seek(-1, io.SeekEnd)
+		if err != nil {
+			tail.Killf("Seek error on %s: %s", tail.Filename, err)
+			return
+		}
+
+		_, err = lineFile.Read(buf)
+		if err != nil {
+			tail.Killf("Seek error on %s: %s", tail.Filename, err)
+			return
+		}
+
+		// if file ends in newline don't count it in lines
+		// to read from end (mimics unix tail command)
+		correction := int64(1)
+		if string(buf) == "\n" {
+			correction = 0
+		}
+
+		_, err = lineFile.SeekLine(tail.LineLocation.Offset+correction, tail.LineLocation.Whence)
 		if err != nil && err != io.EOF {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
 			return
