@@ -241,7 +241,7 @@ func (tail *Tail) tailFileSync() {
 	// Seek to requested location on first open of the file.
 	if tail.Location != nil {
 		_, err := tail.file.Seek(tail.Location.Offset, tail.Location.Whence)
-		tail.Logger.Printf("Seeked %s - %+v\n", tail.Filename, tail.Location)
+		tail.Logger.Printf("Seeked %s - %+v", tail.Filename, tail.Location)
 		if err != nil {
 			tail.Killf("Seek error on %s: %s", tail.Filename, err)
 			return
@@ -420,7 +420,7 @@ func (tail *Tail) sendLine(line string) bool {
 	if tail.Config.RateLimiter != nil {
 		ok := tail.Config.RateLimiter.Pour(uint16(len(lines)))
 		if !ok {
-			tail.Logger.Printf("Leaky bucket full (%v); entering 1s cooloff period.\n",
+			tail.Logger.Printf("Leaky bucket full (%v); entering 1s cooloff period.",
 				tail.Filename)
 			return false
 		}
