@@ -336,9 +336,13 @@ func (tail *Tail) tailFileSync() {
 // reopened if ReOpen is true. Truncated files are always reopened.
 func (tail *Tail) waitForChanges() error {
 	if tail.changes == nil {
-		pos, err := tail.file.Seek(0, os.SEEK_CUR)
-		if err != nil {
-			return err
+		var pos int64
+		var err error
+		if !tail.Pipe {
+			pos, err = tail.file.Seek(0, os.SEEK_CUR)
+			if err != nil {
+				return err
+			}
 		}
 		tail.changes, err = tail.watcher.ChangeEvents(&tail.Tomb, pos)
 		if err != nil {
@@ -389,6 +393,9 @@ func (tail *Tail) openReader() {
 }
 
 func (tail *Tail) seekEnd() error {
+	if !tail.Pipe {
+		return nil
+	}
 	return tail.seekTo(SeekInfo{Offset: 0, Whence: os.SEEK_END})
 }
 
