@@ -17,3 +17,4 @@ matrix:
 install:
   - go get gopkg.in/fsnotify/fsnotify.v1
   - go get gopkg.in/tomb.v1
+  - go get github.com/stoicperlman/fls
