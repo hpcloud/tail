@@ -8,6 +8,7 @@ package tail
 
 import (
 	_ "fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -178,7 +179,7 @@ func TestLocationFullDontFollow(t *testing.T) {
 func TestLocationEnd(t *testing.T) {
 	tailTest := NewTailTest("location-end", t)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
-	tail := tailTest.StartTail("test.txt", Config{Follow: true, Location: &SeekInfo{0, os.SEEK_END}})
+	tail := tailTest.StartTail("test.txt", Config{Follow: true, Location: &SeekInfo{0, io.SeekEnd}})
 	go tailTest.VerifyTailOutput(tail, []string{"more", "data"}, false)
 
 	<-time.After(100 * time.Millisecond)
@@ -195,7 +196,7 @@ func TestLocationMiddle(t *testing.T) {
 	// Test reading from middle.
 	tailTest := NewTailTest("location-middle", t)
 	tailTest.CreateFile("test.txt", "hello\nworld\n")
-	tail := tailTest.StartTail("test.txt", Config{Follow: true, Location: &SeekInfo{-6, os.SEEK_END}})
+	tail := tailTest.StartTail("test.txt", Config{Follow: true, Location: &SeekInfo{-6, io.SeekEnd}})
 	go tailTest.VerifyTailOutput(tail, []string{"world", "more", "data"}, false)
 
 	<-time.After(100 * time.Millisecond)
@@ -263,7 +264,7 @@ func TestTell(t *testing.T) {
 	tailTest.CreateFile("test.txt", "hello\nworld\nagain\nmore\n")
 	config := Config{
 		Follow:   false,
-		Location: &SeekInfo{0, os.SEEK_SET}}
+		Location: &SeekInfo{0, io.SeekStart}}
 	tail := tailTest.StartTail("test.txt", config)
 	// read noe line
 	<-tail.Lines
@@ -276,7 +277,7 @@ func TestTell(t *testing.T) {
 
 	config = Config{
 		Follow:   false,
-		Location: &SeekInfo{offset, os.SEEK_SET}}
+		Location: &SeekInfo{offset, io.SeekStart}}
 	tail = tailTest.StartTail("test.txt", config)
 	for l := range tail.Lines {
 		// it may readed one line in the chan(tail.Lines),
