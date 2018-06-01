@@ -224,8 +224,10 @@ func (tail *Tail) readLine() (string, error) {
 }
 
 func (tail *Tail) tailFileSync() {
-	defer tail.Done()
-	defer tail.close()
+	defer func() {
+		tail.close()
+		tail.Done()
+	}()
 
 	if !tail.MustExist {
 		// deferred first open.
@@ -250,16 +252,12 @@ func (tail *Tail) tailFileSync() {
 
 	tail.openReader()
 
-	var offset int64
-	var err error
-
 	// Read line by line.
 	for {
 		// do not seek in named pipes
 		if !tail.Pipe {
 			// grab the position in case we need to back up in the event of a half-line
-			offset, err = tail.Tell()
-			if err != nil {
+			if _, err := tail.Tell(); err != nil {
 				tail.Kill(err)
 				return
 			}
@@ -295,10 +293,8 @@ func (tail *Tail) tailFileSync() {
 			}
 
 			if tail.Follow && line != "" {
-				// this has the potential to never return the last line if
-				// it's not followed by a newline; seems a fair trade here
-				err := tail.seekTo(SeekInfo{Offset: offset, Whence: 0})
-				if err != nil {
+				tail.sendLine(line)
+				if err := tail.seekEnd(); err != nil {
 					tail.Kill(err)
 					return
 				}

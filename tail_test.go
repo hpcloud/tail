@@ -114,7 +114,7 @@ func TestStopAtEOF(t *testing.T) {
 
 func TestMaxLineSizeFollow(t *testing.T) {
 	// As last file line does not end with newline, it will not be present in tail's output
-	maxLineSize(t, true, "hello\nworld\nfin\nhe", []string{"hel", "lo", "wor", "ld", "fin"})
+	maxLineSize(t, true, "hello\nworld\nfin\nhe", []string{"hel", "lo", "wor", "ld", "fin", "he"})
 }
 
 func TestMaxLineSizeNoFollow(t *testing.T) {
