@@ -1,0 +1,42 @@
+# Golang CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-go/ for more details
+version: 2
+
+jobs:
+  test:
+    docker:
+      - image: golang:1.11-alpine
+    working_directory: /src/gotail
+    steps:
+      - checkout
+      - run: apk add --no-cache git curl gcc musl-dev
+      - run: go test -v .
+      - run: CGO_ENABLED=0 go build -installsuffix 'static' -o ./bin/gotail ./cmd/gotail
+      - run: ./bin/gotail -h || true
+  release:
+    docker:
+      - image: circleci/golang:1.11
+    steps:
+      - checkout
+      - run: CGO_ENABLED=0 go build -installsuffix 'static' -o ./bin/gotail ./cmd/gotail
+      - deploy:
+          name: goreleaser
+          command: |
+            if [ -n "$CIRCLE_TAG" ]; then
+              curl -sL https://git.io/goreleaser | bash
+            fi
+workflows:
+  version: 2
+  test:
+    jobs:
+      - test
+  # release-pipeline runs only on tags.
+  release-pipeline:
+    jobs:
+      - release:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/

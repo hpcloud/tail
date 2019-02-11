@@ -1,19 +1,14 @@
-FROM golang
+FROM golang:1.11-alpine
 
-RUN mkdir -p $GOPATH/src/github.com/hpcloud/tail/
-ADD . $GOPATH/src/github.com/hpcloud/tail/
+RUN apk add --no-cache git curl gcc musl-dev
 
-# expecting to fetch dependencies successfully.
-RUN go get -v github.com/hpcloud/tail
+WORKDIR /src/tail
+COPY . .
 
 # expecting to run the test successfully.
-RUN go test -v github.com/hpcloud/tail
+RUN go test -v .
 
-# expecting to install successfully
-RUN go install -v github.com/hpcloud/tail
-RUN go install -v github.com/hpcloud/tail/cmd/gotail
+RUN CGO_ENABLED=0 go build -installsuffix 'static' \
+    -o ./bin/gotail ./cmd/gotail
 
-RUN $GOPATH/bin/gotail -h || true
-
-ENV PATH $GOPATH/bin:$PATH
-CMD ["gotail"]
+RUN ./bin/gotail -h || true
