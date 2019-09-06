@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hpcloud/tail/ratelimiter"
-	"github.com/hpcloud/tail/util"
-	"github.com/hpcloud/tail/watch"
+	"github.com/nxadm/tail/ratelimiter"
+	"github.com/nxadm/tail/util"
+	"github.com/nxadm/tail/watch"
 	"gopkg.in/tomb.v1"
 )
 

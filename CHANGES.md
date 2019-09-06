@@ -1,10 +1,16 @@
+# Version v1.1.0
+
+* migration to go modules.
+* release of master branch of the dormant upstream, because it containes fixes
+and improvement no present in the tagged release.
+
 # API v1 (gopkg.in/hpcloud/tail.v1)
 
 ## April, 2016
 
 * Migrated to godep, as depman is not longer supported
 * Introduced golang vendoring feature
-* Fixed issue [#57](https://github.com/hpcloud/tail/issues/57) related to reopen deleted file 
+* Fixed issue [#57](https://github.com/hpcloud/tail/issues/57) related to reopen deleted file
 
 ## July, 2015
 

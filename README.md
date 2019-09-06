@@ -1,7 +1,7 @@
-[![Build Status](https://travis-ci.org/nxadm/tail.svg)](https://travis-ci.org/hpcloud/tail)
+[![Build Status](https://travis-ci.org/nxadm/tail.svg)](https://travis-ci.org/nxadm/tail)
 [![Build status](https://ci.appveyor.com/api/projects/status/vrl3paf9md0a7bgk/branch/master?svg=true)](https://ci.appveyor.com/project/Nino-K/tail/branch/master)
 
-This is repo is forked from the dormant upstream from [hpcloud](https://github.com/hpcloud/tail).
+This is repo is forked from the dormant upstream from [nxadm](https://github.com/nxadm/tail).
 
 # Go package for tail-ing files
 
