@@ -1,6 +1,7 @@
 [![Build Status](https://travis-ci.org/nxadm/tail.svg)](https://travis-ci.org/nxadm/tail)
 
 This is repo is forked from the dormant upstream from [hpcloud](https://github.com/nxadm/tail).
+Go 1.9 is the oldest release supported.
 
 # Go package for tail-ing files
 
