@@ -158,6 +158,15 @@ func (tail *Tail) Tell() (offset int64, err error) {
 	return
 }
 
+// FileInfo file stat
+func (tail *Tail) FileInfo() (os.FileInfo, error) {
+	file := tail.file
+	if file == nil {
+		return nil, fmt.Errorf("file is nil")
+	}
+	return file.Stat()
+}
+
 // Stop stops the tailing activity.
 func (tail *Tail) Stop() error {
 	tail.Kill(nil)
