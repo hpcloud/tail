@@ -414,7 +414,11 @@ func (tail *Tail) sendLine(line string) bool {
 	}
 
 	for _, line := range lines {
-		tail.Lines <- &Line{line, now, nil}
+		select {
+		case tail.Lines <- &Line{line, now, nil}:
+		case <-tail.Dying():
+			return true
+		}
 	}
 
 	if tail.Config.RateLimiter != nil {
