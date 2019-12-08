@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hpcloud/tail/ratelimiter"
-	"github.com/hpcloud/tail/util"
-	"github.com/hpcloud/tail/watch"
+	"github.com/paulsc/tail/ratelimiter"
+	"github.com/paulsc/tail/util"
+	"github.com/paulsc/tail/watch"
 	"gopkg.in/tomb.v1"
 )
 
@@ -414,7 +414,11 @@ func (tail *Tail) sendLine(line string) bool {
 	}
 
 	for _, line := range lines {
-		tail.Lines <- &Line{line, now, nil}
+		select {
+		case tail.Lines <- &Line{line, now, nil}:
+		case <-tail.Dying():
+			return true
+		}
 	}
 
 	if tail.Config.RateLimiter != nil {

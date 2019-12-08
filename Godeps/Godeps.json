@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/hpcloud/tail",
+	"ImportPath": "github.com/paulsc/tail",
 	"GoVersion": "go1.5.1",
 	"Deps": [
 		{
