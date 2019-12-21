@@ -18,12 +18,15 @@ import (
 	"github.com/daniele-parise/tail/ratelimiter"
 	"github.com/daniele-parise/tail/util"
 	"github.com/daniele-parise/tail/watch"
+
 	"gopkg.in/tomb.v1"
 )
 
 var (
 	ErrStop = errors.New("tail should now stop")
 )
+
+var Stop = 0
 
 type Line struct {
 	Text string
@@ -362,6 +365,7 @@ func (tail *Tail) waitForChanges() error {
 			return nil
 		} else {
 			tail.Logger.Printf("Stopping tail as file no longer exists: %s", tail.Filename)
+			Stop = 1
 			return ErrStop
 		}
 	case <-tail.changes.Truncated:
