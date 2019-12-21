@@ -12,7 +12,7 @@ for line := range t.Lines {
 }
 ```
 
-See [API documentation](http://godoc.org/github.com/hpcloud/tail).
+See [API documentation](http://godoc.org/github.com/daniele-parise/tail).
 
 ## Log rotation
 
@@ -21,8 +21,8 @@ designed to work with log rotation tools.
 
 ## Installing
 
-    go get github.com/hpcloud/tail/...
+    go get github.com/daniele-parise/tail/...
 
 ## Windows support
 
-This package [needs assistance](https://github.com/hpcloud/tail/labels/Windows) for full Windows support.
+This package [needs assistance](https://github.com/daniele-parise/tail/labels/Windows) for full Windows support.

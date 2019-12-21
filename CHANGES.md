@@ -4,7 +4,7 @@
 
 * Migrated to godep, as depman is not longer supported
 * Introduced golang vendoring feature
-* Fixed issue [#57](https://github.com/hpcloud/tail/issues/57) related to reopen deleted file 
+* Fixed issue [#57](https://github.com/daniele-parise/tail/issues/57) related to reopen deleted file 
 
 ## July, 2015
 
