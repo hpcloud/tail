@@ -4,16 +4,14 @@ script:
   - go test -race -v ./...
 
 go:
-  - 1.5
-  - 1.6
-  - 1.7
-  - 1.8
+  - 1.11
+  - 1.12
+  - 1.13
+  - 1.14
+  - stable
   - tip
 
 matrix:
   allow_failures:
     - go: tip
 
-install:
-  - go get gopkg.in/fsnotify/fsnotify.v1
-  - go get gopkg.in/tomb.v1

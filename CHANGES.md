@@ -1,5 +1,11 @@
 # API v1 (gopkg.in/hpcloud/tail.v1)
 
+## March, 2020
+
+* Migrated to go mod as fsnotify has moved away from gopkg.in
+* Updated vendor folder so it works with go version <= 1.11
+* Added extra Dockerfile to test building with go 1.9 as that is the lowest, working version now
+
 ## April, 2016
 
 * Migrated to godep, as depman is not longer supported
