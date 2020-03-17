@@ -1,0 +1,4 @@
+.git/
+.idea/
+.test/
+*.iml
