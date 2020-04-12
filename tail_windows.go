@@ -3,7 +3,7 @@
 package tail
 
 import (
-	"github.com/daniele-parise/tail/winfile"
+	"github.com/pariseed/tail/winfile"
 	"os"
 )
 

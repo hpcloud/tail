@@ -10,7 +10,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/daniele-parise/tail/util"
+	"github.com/pariseed/tail/util"
 
 	"gopkg.in/fsnotify/fsnotify.v1"
 )

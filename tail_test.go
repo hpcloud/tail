@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/daniele-parise/tail/ratelimiter"
-	"github.com/daniele-parise/tail/watch"
+	"github.com/pariseed/tail/ratelimiter"
+	"github.com/pariseed/tail/watch"
 )
 
 func init() {

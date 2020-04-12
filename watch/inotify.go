@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/daniele-parise/tail/util"
+	"github.com/pariseed/tail/util"
 
 	"gopkg.in/fsnotify/fsnotify.v1"
 	"gopkg.in/tomb.v1"

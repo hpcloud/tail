@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/daniele-parise/tail",
+	"ImportPath": "github.com/pariseed/tail",
 	"GoVersion": "go1.5.1",
 	"Deps": [
 		{

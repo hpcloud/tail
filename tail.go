@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/daniele-parise/tail/ratelimiter"
-	"github.com/daniele-parise/tail/util"
-	"github.com/daniele-parise/tail/watch"
+	"github.com/pariseed/tail/ratelimiter"
+	"github.com/pariseed/tail/util"
+	"github.com/pariseed/tail/watch"
 
 	"gopkg.in/tomb.v1"
 )

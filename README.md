@@ -12,7 +12,7 @@ for line := range t.Lines {
 }
 ```
 
-See [API documentation](http://godoc.org/github.com/daniele-parise/tail).
+See [API documentation](http://godoc.org/github.com/pariseed/tail).
 
 ## Log rotation
 
@@ -21,8 +21,8 @@ designed to work with log rotation tools.
 
 ## Installing
 
-    go get github.com/daniele-parise/tail/...
+    go get github.com/pariseed/tail/...
 
 ## Windows support
 
-This package [needs assistance](https://github.com/daniele-parise/tail/labels/Windows) for full Windows support.
+This package [needs assistance](https://github.com/pariseed/tail/labels/Windows) for full Windows support.
