@@ -1,6 +1,3 @@
-[![Build Status](https://travis-ci.org/hpcloud/tail.svg)](https://travis-ci.org/hpcloud/tail)
-[![Build status](https://ci.appveyor.com/api/projects/status/vrl3paf9md0a7bgk/branch/master?svg=true)](https://ci.appveyor.com/project/Nino-K/tail/branch/master)
-
 # Go package for tail-ing files
 
 A Go package striving to emulate the features of the BSD `tail` program. 
