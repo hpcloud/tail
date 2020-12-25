@@ -15,5 +15,5 @@ matrix:
     - go: tip
 
 install:
-  - go get gopkg.in/fsnotify/fsnotify.v1
+  - go get github.com/fsnotify/fsnotify
   - go get gopkg.in/tomb.v1
