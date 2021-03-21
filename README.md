@@ -25,4 +25,13 @@ designed to work with log rotation tools.
 
 ## Windows support
 
-This package [needs assistance](https://github.com/hpcloud/tail/labels/Windows) for full Windows support.
+If the above example doesn't work for you, try replacing fsnotify method with polling:
+
+```Go
+t, err := tail.TailFile("/var/log/nginx.log", tail.Config{Follow: true, Poll: true})
+for line := range t.Lines {
+    fmt.Println(line.Text)
+}
+```
+
+For further assistance on Windows support, [check the windows-labeled issues](https://github.com/hpcloud/tail/labels/Windows).
