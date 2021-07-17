@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/hpcloud/tail/util"
+	"github.com/tenebris-tech/tail/util"
 	"gopkg.in/tomb.v1"
 )
 
