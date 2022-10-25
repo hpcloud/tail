@@ -2,6 +2,8 @@
 
 This package is a fork of https://github.com/hpcloud which does not appear to be actively maintained.
 
+PRs are welcome.
+
 A Go package striving to emulate the features of the BSD `tail` program.
 
 ```Go
